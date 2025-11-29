@@ -1,0 +1,28 @@
+FAIL __tests__/integration.test.js
+  ● Integration: upload -> DB (real DB required) › uploads Test.vcv and creates a patch row
+
+    getaddrinfo ENOTFOUND 127.0.0.1
+
+    [0m [90m 25 |[39m       password[33m:[39m process[33m.[39menv[33m.[39m[33mDB_PASS[39m [33m||[39m [32m''[39m
+     [90m 26 |[39m     }[33m;[39m
+    [31m[1m>[22m[39m[90m 27 |[39m     adminConn [33m=[39m [36mawait[39m mysql[33m.[39mcreateConnection([33mObject[39m[33m.[39massign({}[33m,[39m adminOpts[33m,[39m { multipleStatements[33m:[39m [36mtrue[39m }))[33m;[39m
+     [90m    |[39m                             [31m[1m^[22m[39m
+     [90m 28 |[39m
+     [90m 29 |[39m     [90m// create test database and run schema + seeds[39m
+     [90m 30 |[39m     [36mconst[39m schema [33m=[39m fs[33m.[39mreadFileSync(path[33m.[39mjoin(__dirname[33m,[39m [32m'..'[39m[33m,[39m [32m'schema.sql'[39m)[33m,[39m [32m'utf8'[39m)[33m;[39m[0m
+
+      at Object.createConnectionPromise [as createConnection] (node_modules/mysql2/promise.js:19:31)
+      at Object.createConnection (__tests__/integration.test.js:27:29)
+
+PASS __tests__/core.test.js
+PASS __tests__/endpoints_extra.test.js
+PASS __tests__/patches.test.js
+PASS __tests__/tags.test.js
+PASS __tests__/utils.test.js
+
+Test Suites: 1 failed, 5 passed, 6 total
+Tests:       1 failed, 14 passed, 15 total
+Snapshots:   0 total
+Time:        4.487 s, estimated 6 s
+Ran all test suites.
+Test results written to: test-results.json

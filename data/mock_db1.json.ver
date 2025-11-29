@@ -1,0 +1,16 @@
+{
+  "patches": [
+    {
+      "id": 1,
+      "user_name": "fixtureUser",
+      "category_id": null,
+      "file_path": "C:\\Users\\konhaw\\Desktop\\Uczelnia\\JS\\Projekt\\uploads\\patches\\1764447955146-109135928-test.vcv",
+      "description": "fixture upload",
+      "uploaded_at": "2025-11-29T20:25:55.154Z"
+    }
+  ],
+  "modules": [],
+  "patch_modules": [],
+  "categories": [],
+  "users": []
+}

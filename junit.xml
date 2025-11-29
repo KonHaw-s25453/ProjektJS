@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="15" failures="1" errors="0" time="4.476">
+  <testsuite name="Integration: upload -&gt; DB (real DB required)" errors="0" failures="1" skipped="0" timestamp="2025-11-29T22:44:53" time="1.485" tests="1">
+    <testcase classname="Integration: upload -&gt; DB (real DB required) uploads Test.vcv and creates a patch row" name="Integration: upload -&gt; DB (real DB required) uploads Test.vcv and creates a patch row" time="0.002">
+      <failure>Error: getaddrinfo ENOTFOUND 127.0.0.1 
+    at Object.createConnectionPromise [as createConnection] (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\mysql2\promise.js:19:31)
+    at Object.createConnection (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\__tests__\integration.test.js:27:29)
+    at Promise.then.completed (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-circus\build\utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-circus\build\utils.js:231:10)
+    at _callCircusHook (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-circus\build\run.js:281:40)
+    at _runTestsForDescribeBlock (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-circus\build\run.js:95:7)
+    at _runTestsForDescribeBlock (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-circus\build\run.js:121:9)
+    at run (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-circus\build\run.js:71:3)
+    at runAndTransformResultsToJestFormat (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapterInit.js:122:21)
+    at jestAdapter (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapter.js:79:19)
+    at runTestInternal (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-runner\build\runTest.js:367:16)
+    at runTest (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-runner\build\runTest.js:444:34)</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2025-11-29T22:44:55" time="1.014" tests="4">
+    <testcase classname=" upload of compressed .vcv (deflated JSON) parses and registers modules" name=" upload of compressed .vcv (deflated JSON) parses and registers modules" time="0.092">
+    </testcase>
+    <testcase classname=" upload of plain JSON .vcv (not compressed) is handled" name=" upload of plain JSON .vcv (not compressed) is handled" time="0.05">
+    </testcase>
+    <testcase classname=" patch listing supports filtering by user and category and since date" name=" patch listing supports filtering by user and category and since date" time="0.136">
+    </testcase>
+    <testcase classname=" GET /patches/:id returns modules with plugin link and download serves file" name=" GET /patches/:id returns modules with plugin link and download serves file" time="0.048">
+    </testcase>
+  </testsuite>
+  <testsuite name="endpoint extra behaviors" errors="0" failures="0" skipped="0" timestamp="2025-11-29T22:44:56" time="0.567" tests="2">
+    <testcase classname="endpoint extra behaviors GET /download/:id returns 404 for missing patch" name="endpoint extra behaviors GET /download/:id returns 404 for missing patch" time="0.238">
+    </testcase>
+    <testcase classname="endpoint extra behaviors when DB not configured endpoints return DB not configured" name="endpoint extra behaviors when DB not configured endpoints return DB not configured" time="0.222">
+    </testcase>
+  </testsuite>
+  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2025-11-29T22:44:56" time="0.375" tests="3">
+    <testcase classname=" GET /patches returns empty patches array with mock DB" name=" GET /patches returns empty patches array with mock DB" time="0.015">
+    </testcase>
+    <testcase classname=" POST /upload without file returns 400" name=" POST /upload without file returns 400" time="0.013">
+    </testcase>
+    <testcase classname="Integration with fixture test.vcv (if present) POST /upload with test.vcv stores patch and returns patchId" name="Integration with fixture test.vcv (if present) POST /upload with test.vcv stores patch and returns patchId" time="0.047">
+    </testcase>
+  </testsuite>
+  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2025-11-29T22:44:57" time="0.517" tests="1">
+    <testcase classname=" add tags to a patch and retrieve them" name=" add tags to a patch and retrieve them" time="0.145">
+    </testcase>
+  </testsuite>
+  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2025-11-29T22:44:57" time="0.309" tests="4">
+    <testcase classname=" tryParseVCV handles deflated JSON buffer" name=" tryParseVCV handles deflated JSON buffer" time="0.003">
+    </testcase>
+    <testcase classname=" tryParseVCV handles plain JSON buffer" name=" tryParseVCV handles plain JSON buffer" time="0.005">
+    </testcase>
+    <testcase classname=" tryParseVCV returns null for invalid data" name=" tryParseVCV returns null for invalid data" time="0.002">
+    </testcase>
+    <testcase classname=" extractModules finds nested modules and dedupes" name=" extractModules finds nested modules and dedupes" time="0.002">
+    </testcase>
+  </testsuite>
+</testsuites>

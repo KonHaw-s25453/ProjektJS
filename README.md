@@ -51,6 +51,20 @@ Files added:
 - `schema.sql` — MySQL schema for tables: users, categories, patches, modules, patch_modules.
 - `.env.example` — example environment variables.
 
+Tests
+-----
+
+This project includes basic integration tests using `jest` and `supertest`.
+
+Run tests (uses the file-backed mock DB):
+
+```powershell
+# tests run with mock DB automatically
+npm test
+```
+
+The test suite resets `data/mock_db.json` before each test so tests are isolated.
+
 Notes:
 
 - The server attempts to parse `.vcv` files using `zlib.inflateSync` and extract objects with `plugin` + `model` fields as module heuristics.
