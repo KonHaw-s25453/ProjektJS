@@ -120,12 +120,15 @@ describe('Integration: upload -> DB (real DB required)', () => {
     if (!process.env.REAL_DB) return;
 
     // require the app after env is set so it will use test DB
+    const jwt = require('jsonwebtoken');
+    const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+    function authHeaderFor(username, role = 1) { return `Bearer ${jwt.sign({ id: 1, username, role }, JWT_SECRET)}`; }
     const app = require('../app');
 
     const fixture = path.join(__dirname, '..', 'Test.vcv');
     const res = await request(app)
       .post('/upload')
-      .field('user', 'test-integration')
+      .set('Authorization', authHeaderFor('test-integration'))
       .field('category', '1')
       .attach('vcv', fixture);
 

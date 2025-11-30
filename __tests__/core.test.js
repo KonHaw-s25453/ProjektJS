@@ -1,4 +1,7 @@
 process.env.MOCK_DB = 'true';
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+function authHeaderFor(username, role = 1) { return `Bearer ${jwt.sign({ id: 1, username, role }, JWT_SECRET)}`; }
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
@@ -45,7 +48,7 @@ test('upload of compressed .vcv (deflated JSON) parses and registers modules', a
   const res = await request(app)
     .post('/upload')
     .attach('vcv', tmp)
-    .field('user', 'alice')
+    .set('Authorization', authHeaderFor('alice'))
     .field('category', '1')
     .field('description', 'deflated json fixture');
 
@@ -67,7 +70,7 @@ test('upload of plain JSON .vcv (not compressed) is handled', async () => {
   const res = await request(app)
     .post('/upload')
     .attach('vcv', tmp)
-    .field('user', 'bob')
+    .set('Authorization', authHeaderFor('bob'))
     .field('category', '2')
     .field('description', 'plain json fixture');
 
@@ -85,7 +88,7 @@ test('patch listing supports filtering by user and category and since date', asy
   const create = async (user, category, desc) => {
     const tmp = path.join(__dirname, `f_${user}_${category}.vcv`);
     fs.writeFileSync(tmp, JSON.stringify(makeFixture(user, category)), 'utf8');
-    const r = await request(app).post('/upload').attach('vcv', tmp).field('user', user).field('category', String(category)).field('description', desc);
+    const r = await request(app).post('/upload').attach('vcv', tmp).set('Authorization', authHeaderFor(user)).field('category', String(category)).field('description', desc);
     fs.unlinkSync(tmp);
     return r.body.patchId;
   };
@@ -121,7 +124,7 @@ test('GET /patches/:id returns modules with plugin link and download serves file
   const tmp = path.join(__dirname, 'fixture_link.vcv');
   fs.writeFileSync(tmp, JSON.stringify(fixture), 'utf8');
 
-  const up = await request(app).post('/upload').attach('vcv', tmp).field('user', 'carol');
+  const up = await request(app).post('/upload').attach('vcv', tmp).set('Authorization', authHeaderFor('carol'));
   expect(up.status).toBe(200);
   const pid = up.body.patchId;
 

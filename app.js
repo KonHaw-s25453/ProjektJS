@@ -389,13 +389,13 @@ function extractModules(parsed) {
 }
 
 // apply limiter to upload route
-app.post('/upload', limiter, upload.single('vcv'), async (req, res) => {
+app.post('/upload', limiter, requireAuth, upload.single('vcv'), async (req, res) => {
   try {
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'No file uploaded (field name "vcv")' });
-    const { category = null, description = null, user = null } = req.body;
-    // prefer authenticated user if present
-    const authUser = req.user && req.user.username ? req.user.username : user;
+    const { category = null, description = null } = req.body;
+    const authUser = req.user && req.user.username ? req.user.username : null;
+    if (!authUser) return res.status(401).json({ error: 'Authentication required for upload' });
     const buffer = fs.readFileSync(file.path);
     const parsed = tryParseVCV(buffer);
     const modules = extractModules(parsed);

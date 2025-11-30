@@ -2,6 +2,9 @@ process.env.MOCK_DB = 'true';
 const fs = require('fs');
 const path = require('path');
 const request = require('supertest');
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+function authHeaderFor(username, role = 1) { return `Bearer ${jwt.sign({ id: 1, username, role }, JWT_SECRET)}`; }
 const app = require('../app');
 
 const MOCK_DB_FILE = path.join(__dirname, '..', 'data', 'mock_db.json');
@@ -22,7 +25,7 @@ test('GET /patches returns empty patches array with mock DB', async () => {
 });
 
 test('POST /upload without file returns 400', async () => {
-  const res = await request(app).post('/upload').field('user', 'tester');
+  const res = await request(app).post('/upload').set('Authorization', authHeaderFor('tester'));
   expect(res.status).toBe(400);
   expect(res.body).toHaveProperty('error');
 });
@@ -38,8 +41,8 @@ describe('Integration with fixture test.vcv (if present)', () => {
   test('POST /upload with test.vcv stores patch and returns patchId', async () => {
     const res = await request(app)
       .post('/upload')
+      .set('Authorization', authHeaderFor('fixtureUser'))
       .attach('vcv', FIXTURE_PATH)
-      .field('user', 'fixtureUser')
       .field('description', 'fixture upload');
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('patchId');

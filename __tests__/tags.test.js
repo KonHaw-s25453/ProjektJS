@@ -2,6 +2,9 @@ process.env.MOCK_DB = 'true';
 const fs = require('fs');
 const path = require('path');
 const request = require('supertest');
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+function authHeaderFor(username, role = 1) { return `Bearer ${jwt.sign({ id: 1, username, role }, JWT_SECRET)}`; }
 const app = require('../app');
 
 const MOCK_DB_FILE = path.join(__dirname, '..', 'data', 'mock_db.json');
@@ -16,7 +19,7 @@ test('add tags to a patch and retrieve them', async () => {
   // create a patch
   const tmp = path.join(__dirname, 't_tag.vcv');
   fs.writeFileSync(tmp, JSON.stringify({ modules: [{ plugin: 'T', model: 'M' }] }), 'utf8');
-  const up = await request(app).post('/upload').attach('vcv', tmp).field('user', 'tagger');
+  const up = await request(app).post('/upload').set('Authorization', authHeaderFor('tagger')).attach('vcv', tmp);
   expect(up.status).toBe(200);
   const pid = up.body.patchId;
 
