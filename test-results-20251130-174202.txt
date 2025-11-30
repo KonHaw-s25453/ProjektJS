@@ -1,0 +1,92 @@
+FAIL __tests__/integration.test.js (5.774 s)
+  ● Console
+
+    console.log
+      Inserted patch id: 2
+
+      at log (app.js:277:17)
+
+  ● Integration: upload -> DB (real DB required) › uploads Test.vcv and creates a patch row
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+    [0m [90m 88 |[39m     [90m// verify row exists in test DB[39m
+     [90m 89 |[39m     [36mconst[39m [rows] [33m=[39m [36mawait[39m dbConn[33m.[39mexecute([32m'SELECT id, user_name, file_path FROM patches WHERE id = ?'[39m[33m,[39m [patchId])[33m;[39m
+    [31m[1m>[22m[39m[90m 90 |[39m     expect(rows[33m.[39mlength)[33m.[39mtoBe([35m1[39m)[33m;[39m
+     [90m    |[39m                         [31m[1m^[22m[39m
+     [90m 91 |[39m     expect(rows[[35m0[39m][33m.[39muser_name)[33m.[39mtoBe([32m'test-integration'[39m)[33m;[39m
+     [90m 92 |[39m
+     [90m 93 |[39m     [90m// remove uploaded file that the app saved[39m[0m
+
+      at Object.toBe (__tests__/integration.test.js:90:25)
+
+PASS __tests__/core.test.js
+  ● Console
+
+    console.log
+      Inserted patch id: 1
+
+      at log (app.js:277:17)
+
+    console.log
+      Inserted patch id: 1
+
+      at log (app.js:277:17)
+
+    console.log
+      Inserted patch id: 1
+
+      at log (app.js:277:17)
+
+    console.log
+      Inserted patch id: 2
+
+      at log (app.js:277:17)
+
+    console.log
+      Inserted patch id: 3
+
+      at log (app.js:277:17)
+
+    console.log
+      Inserted patch id: 1
+
+      at log (app.js:277:17)
+
+PASS __tests__/endpoints_extra.test.js
+PASS __tests__/tags.test.js
+  ● Console
+
+    console.log
+      Inserted patch id: 1
+
+      at log (app.js:277:17)
+
+PASS __tests__/rate_limit.test.js
+PASS __tests__/patches.test.js
+  ● Console
+
+    console.log
+      Inserted patch id: 1
+
+      at log (app.js:277:17)
+
+PASS __tests__/upload_limits.test.js
+  ● Console
+
+    console.log
+      Inserted patch id: 2
+
+      at log (app.js:277:17)
+
+PASS __tests__/utils.test.js
+
+Test Suites: 1 failed, 7 passed, 8 total
+Tests:       1 failed, 18 passed, 19 total
+Snapshots:   0 total
+Time:        12.609 s
+Ran all test suites.
+Test results written to: test-results.json

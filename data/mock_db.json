@@ -2,46 +2,15 @@
   "patches": [
     {
       "id": 1,
-      "user_name": "tagger",
+      "user_name": "fixtureUser",
       "category_id": null,
-      "file_path": "C:\\Users\\konhaw\\Desktop\\Uczelnia\\JS\\Projekt\\uploads\\patches\\1764456297610-631965840-t_tag.vcv",
-      "description": null,
-      "uploaded_at": "2025-11-29T22:44:57.615Z"
+      "file_path": "C:\\Users\\konhaw\\Desktop\\Uczelnia\\JS\\Projekt\\uploads\\patches\\1764524606668-177337431-test.vcv",
+      "description": "fixture upload",
+      "uploaded_at": "2025-11-30T17:43:26.672Z"
     }
   ],
-  "modules": [
-    {
-      "id": 1,
-      "plugin": "T",
-      "model": "M"
-    }
-  ],
-  "patch_modules": [
-    {
-      "patch_id": 1,
-      "module_id": 1
-    }
-  ],
+  "modules": [],
+  "patch_modules": [],
   "categories": [],
-  "users": [],
-  "tags": [
-    {
-      "id": 1,
-      "name": "ambient"
-    },
-    {
-      "id": 2,
-      "name": "drone"
-    }
-  ],
-  "patch_tags": [
-    {
-      "patch_id": "1",
-      "tag_id": 1
-    },
-    {
-      "patch_id": "1",
-      "tag_id": 2
-    }
-  ]
+  "users": []
 }

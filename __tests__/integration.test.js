@@ -46,8 +46,15 @@ describe('Integration: upload -> DB (real DB required)', () => {
       // using existing DB (likely DB_NAME). Ensure schema exists, then clear table contents
       // to avoid dropping user's database. After clearing, reapply seeds.
       console.warn('Using existing database for integration test:', testDbName);
-      // ensure tables exist
+      // ensure tables exist (and add any missing columns introduced later)
       await adminConn.query(`USE \`${testDbName}\`; ${schema}`);
+      // attempt lightweight migrations: add new columns if missing (password_hash, role)
+      try {
+        await adminConn.query(`ALTER TABLE \`${testDbName}\`.users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255)`);
+      } catch (e) { /* ignore if not supported */ }
+      try {
+        await adminConn.query(`ALTER TABLE \`${testDbName}\`.users ADD COLUMN IF NOT EXISTS role TINYINT NOT NULL DEFAULT 1`);
+      } catch (e) { /* ignore if not supported */ }
 
       // clear table contents in FK-safe order and temporarily disable foreign key checks
       const cleanupSql = `

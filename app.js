@@ -5,7 +5,10 @@ const fs = require('fs');
 const zlib = require('zlib');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const rateLimit = require('express-rate-limit');
 const mysql = require('mysql2/promise');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 dotenv.config();
 
@@ -20,7 +23,16 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ storage });
+// Accept only .vcv files and limit size to 5 MB
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (ext !== '.vcv') return cb(new Error('Invalid file type, only .vcv allowed'));
+    cb(null, true);
+  }
+});
 
 const app = express();
 app.use(cors());
@@ -29,6 +41,19 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 let dbPool = null;
 const MOCK_DB = process.env.MOCK_DB === '1' || process.env.MOCK_DB === 'true';
+let currentDbName = process.env.DB_NAME || null;
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+
+// Rate limiter config (can be tuned via env vars)
+const RATE_WINDOW_MS = process.env.RATE_WINDOW_MS ? parseInt(process.env.RATE_WINDOW_MS, 10) : 60 * 1000; // default 1 minute
+const RATE_MAX = process.env.RATE_MAX ? parseInt(process.env.RATE_MAX, 10) : 10; // default max requests per window
+const limiter = rateLimit({
+  windowMs: RATE_WINDOW_MS,
+  max: RATE_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests' }
+});
 
 // Simple file-backed mock DB for testing without MySQL
 const MOCK_DB_FILE = path.join(__dirname, 'data', 'mock_db.json');
@@ -168,7 +193,15 @@ async function getDb() {
   }
 
   if (dbPool) return dbPool;
+  // If DB_NAME changed after a pool was created in a different test/setup,
+  // recreate the pool so tests that set env before requiring app work correctly.
   if (!process.env.DB_HOST) return null;
+  if (currentDbName && process.env.DB_NAME && currentDbName !== process.env.DB_NAME) {
+    try {
+      await dbPool.end();
+    } catch (e) { /* ignore */ }
+    dbPool = null;
+  }
   const dbHost = process.env.DB_HOST ? String(process.env.DB_HOST).trim() : '127.0.0.1';
   const dbPort = process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : undefined;
   const poolConfig = {
@@ -182,6 +215,8 @@ async function getDb() {
   };
   if (dbPort) poolConfig.port = dbPort;
   dbPool = await mysql.createPool(poolConfig);
+  console.log('Created DB pool with config:', { host: poolConfig.host, port: poolConfig.port, database: poolConfig.database, user: poolConfig.user });
+  currentDbName = poolConfig.database;
   return dbPool;
 }
 
@@ -204,6 +239,136 @@ function tryParseVCV(buffer) {
   }
 }
 
+// --- Authentication helpers ---
+async function findUserByUsername(db, username) {
+  if (MOCK_DB) {
+    const state = loadMock();
+    const u = (state.users || []).find(x => String(x.username) === String(username));
+    return u ? { id: u.id, username: u.username, password_hash: u.password_hash, role: u.role } : null;
+  }
+  const [[row]] = await db.execute('SELECT id, username, password_hash, role FROM users WHERE username = ? LIMIT 1', [username]);
+  return row || null;
+}
+
+function signToken(user) {
+  return jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '8h' });
+}
+
+function requireAuth(req, res, next) {
+  const auth = req.headers && req.headers.authorization;
+  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+  const token = auth.slice(7);
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = { id: payload.id, username: payload.username, role: payload.role };
+    return next();
+  } catch (e) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+}
+
+function requireRole(minRole) {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+    if ((req.user.role || 0) < minRole) return res.status(403).json({ error: 'Insufficient role' });
+    return next();
+  };
+}
+
+function allowOwnerOrAdmin(getOwnerUsername) {
+  return async (req, res, next) => {
+    // must be authenticated
+    const auth = req.headers && req.headers.authorization;
+    if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Authentication required' });
+    try {
+      const payload = jwt.verify(auth.slice(7), JWT_SECRET);
+      req.user = { id: payload.id, username: payload.username, role: payload.role };
+    } catch (e) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+    const owner = await getOwnerUsername(req);
+    if (!owner) return res.status(404).json({ error: 'Resource owner not found' });
+    if (req.user.role >= 2 || req.user.username === owner) return next();
+    return res.status(403).json({ error: 'Forbidden' });
+  };
+}
+
+// Auth routes
+app.post('/auth/login', async (req, res) => {
+  const { username, password } = req.body || {};
+  if (!username || !password) return res.status(400).json({ error: 'Provide username and password' });
+  const db = await getDb();
+  if (!db) return res.status(500).json({ error: 'DB not configured' });
+  try {
+    const user = await findUserByUsername(db, username);
+    if (!user || !user.password_hash) return res.status(401).json({ error: 'Invalid credentials' });
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+    const token = signToken(user);
+    res.json({ ok: true, token, user: { id: user.id, username: user.username, role: user.role } });
+  } catch (e) {
+    console.error('Login failed', e);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+// List users (admin+)
+app.get('/users', requireAuth, requireRole(2), async (req, res) => {
+  const db = await getDb();
+  if (!db) return res.status(500).json({ error: 'DB not configured' });
+  if (MOCK_DB) {
+    const state = loadMock();
+    return res.json({ users: state.users || [] });
+  }
+  const [rows] = await db.execute('SELECT id, username, display_name, role, created_at FROM users');
+  res.json({ users: rows });
+});
+
+// Promote/demote user (owner only)
+app.post('/users/:username/role', requireAuth, async (req, res) => {
+  if ((req.user || {}).role !== 3) return res.status(403).json({ error: 'Owner role required' });
+  const target = req.params.username;
+  const { role } = req.body || {};
+  if (typeof role !== 'number' || role < 0 || role > 3) return res.status(400).json({ error: 'Invalid role' });
+  const db = await getDb();
+  if (!db) return res.status(500).json({ error: 'DB not configured' });
+  if (MOCK_DB) {
+    const state = loadMock();
+    const u = state.users.find(x => x.username === target);
+    if (!u) return res.status(404).json({ error: 'User not found' });
+    u.role = role; saveMock(state); return res.json({ ok: true, user: u });
+  }
+  await db.execute('UPDATE users SET role = ? WHERE username = ?', [role, target]);
+  res.json({ ok: true });
+});
+
+// Delete user (admin or owner)
+app.delete('/users/:username', requireAuth, async (req, res) => {
+  const requester = req.user;
+  const targetName = req.params.username;
+  const db = await getDb();
+  if (!db) return res.status(500).json({ error: 'DB not configured' });
+  // find target
+  let target;
+  if (MOCK_DB) {
+    const state = loadMock();
+    target = state.users.find(u => u.username === targetName);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (requester.role === 2 && target.role >= 2) return res.status(403).json({ error: 'Admins cannot delete other admins or owner' });
+    if (requester.role < 2) return res.status(403).json({ error: 'Admin or owner required' });
+    // owner can delete admins too
+    state.users = state.users.filter(u => u.username !== targetName);
+    saveMock(state);
+    return res.json({ ok: true });
+  }
+  const [[trow]] = await db.execute('SELECT id, role FROM users WHERE username = ? LIMIT 1', [targetName]);
+  if (!trow) return res.status(404).json({ error: 'User not found' });
+  if (requester.role === 2 && trow.role >= 2) return res.status(403).json({ error: 'Admins cannot delete other admins or owner' });
+  if (requester.role < 2) return res.status(403).json({ error: 'Admin or owner required' });
+  await db.execute('DELETE FROM users WHERE username = ?', [targetName]);
+  res.json({ ok: true });
+});
+
 function extractModules(parsed) {
   const modules = [];
   if (!parsed) return modules;
@@ -223,11 +388,14 @@ function extractModules(parsed) {
   });
 }
 
-app.post('/upload', upload.single('vcv'), async (req, res) => {
+// apply limiter to upload route
+app.post('/upload', limiter, upload.single('vcv'), async (req, res) => {
   try {
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'No file uploaded (field name "vcv")' });
     const { category = null, description = null, user = null } = req.body;
+    // prefer authenticated user if present
+    const authUser = req.user && req.user.username ? req.user.username : user;
     const buffer = fs.readFileSync(file.path);
     const parsed = tryParseVCV(buffer);
     const modules = extractModules(parsed);
@@ -236,12 +404,19 @@ app.post('/upload', upload.single('vcv'), async (req, res) => {
     if (db) {
       const conn = await db.getConnection();
       try {
+        try {
+          const [[dbInfo]] = await conn.execute("SELECT DATABASE() AS dbname");
+          console.log('App connection DATABASE():', dbInfo && dbInfo.dbname);
+        } catch (e) {
+          console.log('Could not query DATABASE() on connection', e && e.message);
+        }
         await conn.beginTransaction();
         const [result] = await conn.execute(
           'INSERT INTO patches (user_name, category_id, file_path, description, uploaded_at) VALUES (?, ?, ?, ?, NOW())',
-          [user, category, file.path, description]
+          [authUser, category, file.path, description]
         );
         patchId = result.insertId;
+        console.log('Inserted patch id:', patchId);
         for (const m of modules) {
           const [rows] = await conn.execute('SELECT id FROM modules WHERE plugin = ? AND model = ? LIMIT 1', [m.plugin, m.model]);
           let moduleId;
@@ -254,10 +429,13 @@ app.post('/upload', upload.single('vcv'), async (req, res) => {
         }
         await conn.commit();
       } catch (err) {
-        await conn.rollback();
+        try { await conn.rollback(); } catch (e) { console.error('Rollback failed', e); }
         console.error('DB transaction failed', err);
-      } finally {
         conn.release();
+        return res.status(500).json({ error: 'DB transaction failed', details: String(err) });
+      } finally {
+        // release only if not released above
+        try { conn.release(); } catch (e) { /* ignore */ }
       }
     }
     res.json({ ok: true, parsed: !!parsed, modules, patchId, path: file.path });
@@ -265,6 +443,21 @@ app.post('/upload', upload.single('vcv'), async (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Upload failed', details: String(err) });
   }
+});
+
+// Multer / upload error handler
+app.use((err, req, res, next) => {
+  if (!err) return next();
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'File too large' });
+    return res.status(400).json({ error: err.message });
+  }
+  // custom fileFilter error comes here as generic Error
+  if (err && String(err.message).toLowerCase().includes('invalid file type')) {
+    return res.status(400).json({ error: err.message });
+  }
+  console.error('Unhandled error middleware:', err);
+  res.status(500).json({ error: 'Server error', details: String(err) });
 });
 
 app.get('/patches', async (req, res) => {
@@ -296,6 +489,9 @@ app.get('/patches', async (req, res) => {
   res.json({ patches: rows });
 });
 
+// Note: limiter applied to upload route above. If you want global limits,
+// consider `app.use(limiter)` or `app.use('/api', limiter)` as appropriate.
+
 app.get('/patches/:id', async (req, res) => {
   const id = req.params.id;
   const db = await getDb();
@@ -319,6 +515,34 @@ app.get('/patches/:id', async (req, res) => {
     tags = [];
   }
   res.json({ patch, modules: mods, tags });
+});
+
+// Delete a patch (owner or admin)
+app.delete('/patches/:id', allowOwnerOrAdmin(async (req) => {
+  const id = req.params.id;
+  const db = await getDb();
+  if (MOCK_DB) {
+    const state = loadMock();
+    const p = state.patches.find(x => String(x.id) === String(id));
+    return p ? p.user_name : null;
+  }
+  const [[row]] = await db.execute('SELECT user_name FROM patches WHERE id = ? LIMIT 1', [id]);
+  return row ? row.user_name : null;
+}), async (req, res) => {
+  const id = req.params.id;
+  const db = await getDb();
+  if (MOCK_DB) {
+    const state = loadMock();
+    state.patches = state.patches.filter(x => String(x.id) !== String(id));
+    state.patch_modules = state.patch_modules.filter(pm => String(pm.patch_id) !== String(id));
+    state.patch_tags = state.patch_tags.filter(pt => String(pt.patch_id) !== String(id));
+    saveMock(state);
+    return res.json({ ok: true });
+  }
+  await db.execute('DELETE FROM patch_tags WHERE patch_id = ?', [id]);
+  await db.execute('DELETE FROM patch_modules WHERE patch_id = ?', [id]);
+  await db.execute('DELETE FROM patches WHERE id = ?', [id]);
+  res.json({ ok: true });
 });
 
 // Add tags to a patch

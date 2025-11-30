@@ -1,59 +1,69 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="15" failures="1" errors="0" time="4.476">
-  <testsuite name="Integration: upload -&gt; DB (real DB required)" errors="0" failures="1" skipped="0" timestamp="2025-11-29T22:44:53" time="1.485" tests="1">
-    <testcase classname="Integration: upload -&gt; DB (real DB required) uploads Test.vcv and creates a patch row" name="Integration: upload -&gt; DB (real DB required) uploads Test.vcv and creates a patch row" time="0.002">
-      <failure>Error: getaddrinfo ENOTFOUND 127.0.0.1 
-    at Object.createConnectionPromise [as createConnection] (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\mysql2\promise.js:19:31)
-    at Object.createConnection (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\__tests__\integration.test.js:27:29)
-    at Promise.then.completed (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-circus\build\utils.js:298:28)
-    at new Promise (&lt;anonymous&gt;)
-    at callAsyncCircusFn (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-circus\build\utils.js:231:10)
-    at _callCircusHook (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-circus\build\run.js:281:40)
-    at _runTestsForDescribeBlock (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-circus\build\run.js:95:7)
-    at _runTestsForDescribeBlock (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-circus\build\run.js:121:9)
-    at run (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-circus\build\run.js:71:3)
-    at runAndTransformResultsToJestFormat (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapterInit.js:122:21)
-    at jestAdapter (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapter.js:79:19)
-    at runTestInternal (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-runner\build\runTest.js:367:16)
-    at runTest (C:\Users\konhaw\Desktop\Uczelnia\JS\Projekt\node_modules\jest-runner\build\runTest.js:444:34)</failure>
+<testsuites name="jest tests" tests="23" failures="0" errors="0" time="7.487">
+  <testsuite name="Permissions matrix" errors="0" failures="0" skipped="0" timestamp="2025-11-30T17:43:19" time="1.589" tests="3">
+    <testcase classname="Permissions matrix admin can list users, regular user cannot" name="Permissions matrix admin can list users, regular user cannot" time="0.032" file="__tests__\permissions.test.js">
+    </testcase>
+    <testcase classname="Permissions matrix owner can promote user to admin and admin can delete non-admin user" name="Permissions matrix owner can promote user to admin and admin can delete non-admin user" time="0.241" file="__tests__\permissions.test.js">
+    </testcase>
+    <testcase classname="Permissions matrix patch deletion: admin can delete patch and owner/user can delete own patch" name="Permissions matrix patch deletion: admin can delete patch and owner/user can delete own patch" time="0.034" file="__tests__\permissions.test.js">
     </testcase>
   </testsuite>
-  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2025-11-29T22:44:55" time="1.014" tests="4">
-    <testcase classname=" upload of compressed .vcv (deflated JSON) parses and registers modules" name=" upload of compressed .vcv (deflated JSON) parses and registers modules" time="0.092">
-    </testcase>
-    <testcase classname=" upload of plain JSON .vcv (not compressed) is handled" name=" upload of plain JSON .vcv (not compressed) is handled" time="0.05">
-    </testcase>
-    <testcase classname=" patch listing supports filtering by user and category and since date" name=" patch listing supports filtering by user and category and since date" time="0.136">
-    </testcase>
-    <testcase classname=" GET /patches/:id returns modules with plugin link and download serves file" name=" GET /patches/:id returns modules with plugin link and download serves file" time="0.048">
+  <testsuite name="Auth and roles" errors="0" failures="0" skipped="0" timestamp="2025-11-30T17:43:21" time="1.091" tests="1">
+    <testcase classname="Auth and roles login returns token and role for users" name="Auth and roles login returns token and role for users" time="0.642" file="__tests__\auth.test.js">
     </testcase>
   </testsuite>
-  <testsuite name="endpoint extra behaviors" errors="0" failures="0" skipped="0" timestamp="2025-11-29T22:44:56" time="0.567" tests="2">
-    <testcase classname="endpoint extra behaviors GET /download/:id returns 404 for missing patch" name="endpoint extra behaviors GET /download/:id returns 404 for missing patch" time="0.238">
+  <testsuite name="endpoint extra behaviors" errors="0" failures="0" skipped="0" timestamp="2025-11-30T17:43:22" time="0.682" tests="2">
+    <testcase classname="endpoint extra behaviors GET /download/:id returns 404 for missing patch" name="endpoint extra behaviors GET /download/:id returns 404 for missing patch" time="0.292" file="__tests__\endpoints_extra.test.js">
     </testcase>
-    <testcase classname="endpoint extra behaviors when DB not configured endpoints return DB not configured" name="endpoint extra behaviors when DB not configured endpoints return DB not configured" time="0.222">
-    </testcase>
-  </testsuite>
-  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2025-11-29T22:44:56" time="0.375" tests="3">
-    <testcase classname=" GET /patches returns empty patches array with mock DB" name=" GET /patches returns empty patches array with mock DB" time="0.015">
-    </testcase>
-    <testcase classname=" POST /upload without file returns 400" name=" POST /upload without file returns 400" time="0.013">
-    </testcase>
-    <testcase classname="Integration with fixture test.vcv (if present) POST /upload with test.vcv stores patch and returns patchId" name="Integration with fixture test.vcv (if present) POST /upload with test.vcv stores patch and returns patchId" time="0.047">
+    <testcase classname="endpoint extra behaviors when DB not configured endpoints return DB not configured" name="endpoint extra behaviors when DB not configured endpoints return DB not configured" time="0.267" file="__tests__\endpoints_extra.test.js">
     </testcase>
   </testsuite>
-  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2025-11-29T22:44:57" time="0.517" tests="1">
-    <testcase classname=" add tags to a patch and retrieve them" name=" add tags to a patch and retrieve them" time="0.145">
+  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2025-11-30T17:43:23" time="0.621" tests="4">
+    <testcase classname=" upload of compressed .vcv (deflated JSON) parses and registers modules" name=" upload of compressed .vcv (deflated JSON) parses and registers modules" time="0.072" file="__tests__\core.test.js">
+    </testcase>
+    <testcase classname=" upload of plain JSON .vcv (not compressed) is handled" name=" upload of plain JSON .vcv (not compressed) is handled" time="0.028" file="__tests__\core.test.js">
+    </testcase>
+    <testcase classname=" patch listing supports filtering by user and category and since date" name=" patch listing supports filtering by user and category and since date" time="0.129" file="__tests__\core.test.js">
+    </testcase>
+    <testcase classname=" GET /patches/:id returns modules with plugin link and download serves file" name=" GET /patches/:id returns modules with plugin link and download serves file" time="0.043" file="__tests__\core.test.js">
     </testcase>
   </testsuite>
-  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2025-11-29T22:44:57" time="0.309" tests="4">
-    <testcase classname=" tryParseVCV handles deflated JSON buffer" name=" tryParseVCV handles deflated JSON buffer" time="0.003">
+  <testsuite name="Integration: upload -&gt; DB (real DB required)" errors="0" failures="0" skipped="0" timestamp="2025-11-30T17:43:23" time="0.558" tests="1">
+    <testcase classname="Integration: upload -&gt; DB (real DB required) uploads Test.vcv and creates a patch row" name="Integration: upload -&gt; DB (real DB required) uploads Test.vcv and creates a patch row" time="0.164" file="__tests__\integration.test.js">
     </testcase>
-    <testcase classname=" tryParseVCV handles plain JSON buffer" name=" tryParseVCV handles plain JSON buffer" time="0.005">
+  </testsuite>
+  <testsuite name="Rate limiting" errors="0" failures="0" skipped="0" timestamp="2025-11-30T17:43:24" time="0.836" tests="1">
+    <testcase classname="Rate limiting allows requests under the limit and blocks when exceeded" name="Rate limiting allows requests under the limit and blocks when exceeded" time="0.423" file="__tests__\rate_limit.test.js">
     </testcase>
-    <testcase classname=" tryParseVCV returns null for invalid data" name=" tryParseVCV returns null for invalid data" time="0.002">
+  </testsuite>
+  <testsuite name="Upload limits and validation" errors="0" failures="0" skipped="0" timestamp="2025-11-30T17:43:25" time="0.67" tests="3">
+    <testcase classname="Upload limits and validation accepts small .vcv file" name="Upload limits and validation accepts small .vcv file" time="0.056" file="__tests__\upload_limits.test.js">
     </testcase>
-    <testcase classname=" extractModules finds nested modules and dedupes" name=" extractModules finds nested modules and dedupes" time="0.002">
+    <testcase classname="Upload limits and validation rejects too large file" name="Upload limits and validation rejects too large file" time="0.092" file="__tests__\upload_limits.test.js">
+    </testcase>
+    <testcase classname="Upload limits and validation rejects wrong extension" name="Upload limits and validation rejects wrong extension" time="0.01" file="__tests__\upload_limits.test.js">
+    </testcase>
+  </testsuite>
+  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2025-11-30T17:43:25" time="0.458" tests="1">
+    <testcase classname=" add tags to a patch and retrieve them" name=" add tags to a patch and retrieve them" time="0.067" file="__tests__\tags.test.js">
+    </testcase>
+  </testsuite>
+  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2025-11-30T17:43:26" time="0.471" tests="3">
+    <testcase classname=" GET /patches returns empty patches array with mock DB" name=" GET /patches returns empty patches array with mock DB" time="0.047" file="__tests__\patches.test.js">
+    </testcase>
+    <testcase classname=" POST /upload without file returns 400" name=" POST /upload without file returns 400" time="0.013" file="__tests__\patches.test.js">
+    </testcase>
+    <testcase classname="Integration with fixture test.vcv (if present) POST /upload with test.vcv stores patch and returns patchId" name="Integration with fixture test.vcv (if present) POST /upload with test.vcv stores patch and returns patchId" time="0.046" file="__tests__\patches.test.js">
+    </testcase>
+  </testsuite>
+  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2025-11-30T17:43:26" time="0.307" tests="4">
+    <testcase classname=" tryParseVCV handles deflated JSON buffer" name=" tryParseVCV handles deflated JSON buffer" time="0.003" file="__tests__\utils.test.js">
+    </testcase>
+    <testcase classname=" tryParseVCV handles plain JSON buffer" name=" tryParseVCV handles plain JSON buffer" time="0.005" file="__tests__\utils.test.js">
+    </testcase>
+    <testcase classname=" tryParseVCV returns null for invalid data" name=" tryParseVCV returns null for invalid data" time="0.001" file="__tests__\utils.test.js">
+    </testcase>
+    <testcase classname=" extractModules finds nested modules and dedupes" name=" extractModules finds nested modules and dedupes" time="0.001" file="__tests__\utils.test.js">
     </testcase>
   </testsuite>
 </testsuites>
