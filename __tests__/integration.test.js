@@ -10,7 +10,13 @@ const mysql = require('mysql2/promise');
 
 describe('Integration: upload -> DB (real DB required)', () => {
   let adminConn; // connection to create/drop test DB
-  let testDbName = process.env.TEST_DB_NAME || 'vcv_test';
+  // prefer explicit TEST_DB_NAME, fall back to DB_NAME (use existing), else default to vcv_test
+  let testDbName = process.env.TEST_DB_NAME || process.env.DB_NAME || 'vcv_test';
+  // protect important DB names: refuse to run destructive operations on them
+  const protectedDbs = ['vcv', 'production', 'prod', 'main', 'information_schema', 'mysql', 'performance_schema'];
+  if (!process.env.TEST_DB_NAME && protectedDbs.includes(String(testDbName).toLowerCase())) {
+    throw new Error(`Refusing to run integration test on protected database '${testDbName}'. Set TEST_DB_NAME to a separate test database to override.`);
+  }
   let dbConn; // connection to test DB for verification
 
   beforeAll(async () => {
@@ -26,11 +32,46 @@ describe('Integration: upload -> DB (real DB required)', () => {
     };
     adminConn = await mysql.createConnection(Object.assign({}, adminOpts, { multipleStatements: true }));
 
-    // create test database and run schema + seeds
+    // apply schema and seeds. If using an existing DB (DB_NAME was set), do not DROP it —
+    // just run schema + seeds against that database. If TEST_DB_NAME explicitly set,
+    // recreate it to ensure a clean environment.
     const schema = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
     const seeds = fs.readFileSync(path.join(__dirname, '..', 'seeds.sql'), 'utf8');
-    await adminConn.query(`DROP DATABASE IF EXISTS \`${testDbName}\`; CREATE DATABASE \`${testDbName}\`;`);
-    await adminConn.query(`USE \`${testDbName}\`; ${schema} ${seeds}`);
+    if (process.env.TEST_DB_NAME) {
+      // explicit test DB requested: recreate
+      await adminConn.query(`DROP DATABASE IF EXISTS \`${testDbName}\`; CREATE DATABASE \`${testDbName}\`;`);
+      await adminConn.query(`USE \`${testDbName}\`; ${schema} ${seeds}`);
+    } else {
+      // using existing DB (likely DB_NAME). Ensure schema exists, then clear table contents
+      // to avoid dropping user's database. After clearing, reapply seeds.
+      console.warn('Using existing database for integration test:', testDbName);
+      // ensure tables exist
+      await adminConn.query(`USE \`${testDbName}\`; ${schema}`);
+
+      // clear table contents in FK-safe order and temporarily disable foreign key checks
+      const cleanupSql = `
+        USE \`${testDbName}\`;
+        SET FOREIGN_KEY_CHECKS=0;
+        DELETE FROM patch_tags;
+        DELETE FROM patch_modules;
+        DELETE FROM patches;
+        DELETE FROM modules;
+        DELETE FROM tags;
+        DELETE FROM users;
+        DELETE FROM categories;
+        -- reset AUTO_INCREMENT for a clean state
+        ALTER TABLE users AUTO_INCREMENT = 1;
+        ALTER TABLE categories AUTO_INCREMENT = 1;
+        ALTER TABLE patches AUTO_INCREMENT = 1;
+        ALTER TABLE modules AUTO_INCREMENT = 1;
+        ALTER TABLE tags AUTO_INCREMENT = 1;
+        SET FOREIGN_KEY_CHECKS=1;
+      `;
+      await adminConn.query(cleanupSql);
+
+      // reapply seeds so test has expected baseline data
+      await adminConn.query(`USE \`${testDbName}\`; ${seeds}`);
+    }
 
     // set env so the app will use the test DB
     process.env.DB_NAME = testDbName;
@@ -52,8 +93,9 @@ describe('Integration: upload -> DB (real DB required)', () => {
 
     try {
       if (dbConn) await dbConn.end();
-      // drop the test database
-      if (adminConn) await adminConn.query(`DROP DATABASE IF EXISTS \`${testDbName}\`;`);
+      // drop the test database only if we explicitly created a test database
+      // i.e. when TEST_DB_NAME was set. Do NOT drop the user's existing DB (DB_NAME).
+      if (adminConn && process.env.TEST_DB_NAME) await adminConn.query(`DROP DATABASE IF EXISTS \`${testDbName}\`;`);
     } finally {
       if (adminConn) await adminConn.end();
     }
@@ -85,20 +127,28 @@ describe('Integration: upload -> DB (real DB required)', () => {
 
     const patchId = res.body.patchId;
 
-    // verify row exists in test DB
-    const [rows] = await dbConn.execute('SELECT id, user_name, file_path FROM patches WHERE id = ?', [patchId]);
-    expect(rows.length).toBe(1);
-    expect(rows[0].user_name).toBe('test-integration');
+    // verify via the app endpoint to ensure we read through the same DB/pool
+    const getRes = await request(app).get(`/patches/${patchId}`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.body).toHaveProperty('patch');
+    expect(getRes.body.patch).toHaveProperty('id', patchId);
+    expect(getRes.body.patch).toHaveProperty('user_name', 'test-integration');
 
     // remove uploaded file that the app saved
-    if (rows[0].file_path && fs.existsSync(rows[0].file_path)) {
-      try { fs.unlinkSync(rows[0].file_path); } catch (e) { /* ignore */ }
+    const filePath = getRes.body.patch.file_path;
+    if (filePath && fs.existsSync(filePath)) {
+      try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
     }
 
     // cleanup inserted rows (in test DB)
-    await dbConn.execute('DELETE FROM patch_tags WHERE patch_id = ?', [patchId]);
-    await dbConn.execute('DELETE FROM patch_modules WHERE patch_id = ?', [patchId]);
-    await dbConn.execute('DELETE FROM patches WHERE id = ?', [patchId]);
+    // cleanup inserted rows (in test DB) via dbConn if available
+    try {
+      await dbConn.execute('DELETE FROM patch_tags WHERE patch_id = ?', [patchId]);
+      await dbConn.execute('DELETE FROM patch_modules WHERE patch_id = ?', [patchId]);
+      await dbConn.execute('DELETE FROM patches WHERE id = ?', [patchId]);
+    } catch (e) {
+      // ignore cleanup errors
+    }
   });
 });
 
