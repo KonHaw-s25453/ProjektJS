@@ -12,8 +12,9 @@ describe('Integration: upload -> DB (real DB required)', () => {
   let adminConn; // connection to create/drop test DB
   // prefer explicit TEST_DB_NAME, fall back to DB_NAME (use existing), else default to vcv_test
   let testDbName = process.env.TEST_DB_NAME || process.env.DB_NAME || 'vcv_test';
-  // protect important DB names: refuse to run destructive operations on them
-  const protectedDbs = ['vcv', 'production', 'prod', 'main', 'information_schema', 'mysql', 'performance_schema'];
+  // protect important DB names: refuse to run destructive operations on them.
+  // NOTE: 'vcv' is intentionally omitted here because it's used as the local test DB.
+  const protectedDbs = ['production', 'prod', 'main', 'information_schema', 'mysql', 'performance_schema'];
   if (!process.env.TEST_DB_NAME && protectedDbs.includes(String(testDbName).toLowerCase())) {
     throw new Error(`Refusing to run integration test on protected database '${testDbName}'. Set TEST_DB_NAME to a separate test database to override.`);
   }
