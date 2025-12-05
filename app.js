@@ -34,113 +34,26 @@ app.use('/api', userRoutes);
 
 async function getDb() {
   if (!dbPool) {
+    if (MOCK_DB) {
+      const state = loadMock();
+      return {
+        execute: async (sql, params = []) => {
+          // ...existing code...
+        }
+      };
+    }
     dbPool = await require('mysql2/promise').createPool({
       host: process.env.DB_HOST || '127.0.0.1',
       user: process.env.DB_USER || 'root',
       password: process.env.DB_PASS || '',
-      database: process.env.DB_NAME || 'vcv',
-      port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 3306,
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0
+      // ...existing code for real DB...
     });
   }
   return dbPool;
 }
 
-// Auth routes
-app.post('/auth/login', async (req, res) => {
-  const { username, password } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'Provide username and password' });
-  const db = await getDb();
-  if (!db) return res.status(500).json({ error: 'DB not configured' });
-  try {
-    const user = await findUserByUsername(db, username);
-    if (!user || !user.password_hash) return res.status(401).json({ error: 'Invalid credentials' });
-    const ok = await bcrypt.compare(password, user.password_hash);
-    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
-    const token = signToken(user);
-    res.json({ ok: true, token, user: { id: user.id, username: user.username, role: user.role } });
-  } catch (e) {
-    console.error('Login failed', e);
-    res.status(500).json({ error: 'Login failed' });
-  }
-});
-// ...existing code...
-// List users (admin+)
-app.get('/users', requireAuth, async (req, res) => {
-  // Only admin (role 2) or owner (role 3) can list users
-  if (!req.user || req.user.role < 2) return res.status(403).json({ error: 'Admin or owner required' });
-  if (MOCK_DB) {
-    const state = loadMock();
-    return res.json({ users: state.users || [] });
-  }
-  const db = await getDb();
-  const [rows] = await db.execute('SELECT id, username, display_name, role, created_at FROM users');
-  res.json({ users: rows });
-});
-// ...existing code...
-
-// Promote/demote user (owner only)
-app.post('/users/:username/role', requireAuth, async (req, res) => {
-  if ((req.user || {}).role !== 3) return res.status(403).json({ error: 'Owner role required' });
-  const target = req.params.username;
-  const { role } = req.body || {};
-  if (typeof role !== 'number' || role < 0 || role > 3) return res.status(400).json({ error: 'Invalid role' });
-  const db = await getDb();
-  if (!db) return res.status(500).json({ error: 'DB not configured' });
-  await db.execute('UPDATE users SET role = ? WHERE username = ?', [role, target]);
-  res.json({ ok: true });
-});
-
-// Delete user (admin or owner)
-app.delete('/users/:username', requireAuth, async (req, res) => {
-  const requester = req.user;
-  const targetName = req.params.username;
-  const db = await getDb();
-  if (!db) return res.status(500).json({ error: 'DB not configured' });
-  // find target
-  let target;
-  if (MOCK_DB) {
-    const state = loadMock();
-    target = state.users.find(u => u.username === targetName);
-    if (!target) return res.status(404).json({ error: 'User not found' });
-    if (requester.role === 2 && target.role >= 2) return res.status(403).json({ error: 'Admins cannot delete other admins or owner' });
-    if (requester.role < 2) return res.status(403).json({ error: 'Admin or owner required' });
-    // owner can delete admins too
-    state.users = state.users.filter(u => u.username !== targetName);
-    saveMock(state);
-    return res.json({ ok: true });
-  }
-  const [[trow]] = await db.execute('SELECT id, role FROM users WHERE username = ? LIMIT 1', [targetName]);
-  if (!trow) return res.status(404).json({ error: 'User not found' });
-  if (requester.role === 2 && trow.role >= 2) return res.status(403).json({ error: 'Admins cannot delete other admins or owner' });
-  if (requester.role < 2) return res.status(403).json({ error: 'Admin or owner required' });
-  await db.execute('DELETE FROM users WHERE username = ?', [targetName]);
-  res.json({ ok: true });
-});
-
-function extractModules(parsed) {
-  const modules = [];
-  if (!parsed) return modules;
-  function walk(obj) {
-    if (!obj || typeof obj !== 'object') return;
-    if (Array.isArray(obj)) { obj.forEach(walk); return; }
-    if (obj.plugin && obj.model) { modules.push({ plugin: obj.plugin, model: obj.model }); }
-    for (const k of Object.keys(obj)) walk(obj[k]);
-  }
-  walk(parsed);
-  const seen = new Set();
-  return modules.filter(m => {
-    const key = `${m.plugin}::${m.model}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-// apply limiter to upload route
-app.post('/upload', limiter, requireAuth, upload.single('vcv'), async (req, res) => {
+// Move upload handler code outside getDb function
+app.post('/upload', upload.single('vcv'), limiter, requireAuth, async (req, res) => {
   try {
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'No file uploaded (field name "vcv")' });
