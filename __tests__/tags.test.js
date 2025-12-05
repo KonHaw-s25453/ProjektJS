@@ -1,25 +1,32 @@
-process.env.MOCK_DB = 'true';
 const fs = require('fs');
 const path = require('path');
 const request = require('supertest');
-const jwt = require('jsonwebtoken');
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
-function authHeaderFor(username, role = 1) { return `Bearer ${jwt.sign({ id: 1, username, role }, JWT_SECRET)}`; }
+const mysql = require('mysql2/promise');
+const { findUserByUsername, signToken } = require('../models/user');
+async function authHeaderFor(username) {
+  const db = await mysql.createConnection({
+    host: process.env.DB_HOST || '127.0.0.1',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASS || '',
+    database: process.env.DB_NAME || 'vcv',
+  });
+  const user = await findUserByUsername(db, username);
+  await db.end();
+  if (!user) throw new Error('User not found: ' + username);
+  return `Bearer ${signToken(user)}`;
+}
 const app = require('../app');
 
-const MOCK_DB_FILE = path.join(__dirname, '..', 'data', 'mock_db.json');
-
 beforeEach(() => {
-  const state = { patches: [], modules: [], patch_modules: [], categories: [], users: [], tags: [], patch_tags: [] };
-  fs.mkdirSync(path.join(__dirname, '..', 'data'), { recursive: true });
-  fs.writeFileSync(MOCK_DB_FILE, JSON.stringify(state, null, 2));
+  // ...setup code if needed
 });
 
 test('add tags to a patch and retrieve them', async () => {
   // create a patch
-  const tmp = path.join(__dirname, 't_tag.vcv');
-  fs.writeFileSync(tmp, JSON.stringify({ modules: [{ plugin: 'T', model: 'M' }] }), 'utf8');
-  const up = await request(app).post('/upload').set('Authorization', authHeaderFor('tagger')).attach('vcv', tmp);
+  const up = await request(app)
+    .post('/upload')
+    .set('Authorization', await authHeaderFor('tagger'))
+    .attach('vcv', Buffer.from(JSON.stringify({ modules: [{ plugin: 'T', model: 'M' }] }), 'utf8'), 't_tag.vcv');
   expect(up.status).toBe(200);
   const pid = up.body.patchId;
 
@@ -38,6 +45,4 @@ test('add tags to a patch and retrieve them', async () => {
   const list = await request(app).get('/patches').query({ tag: 'ambient' });
   expect(list.status).toBe(200);
   expect(list.body.patches.some(p => p.id === pid)).toBe(true);
-
-  fs.unlinkSync(tmp);
 });

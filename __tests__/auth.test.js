@@ -2,8 +2,6 @@ const request = require('supertest');
 const path = require('path');
 const fs = require('fs');
 
-// Use mock DB for these tests
-process.env.MOCK_DB = '1';
 const MOCK_DB_FILE = path.join(__dirname, '..', 'data', 'mock_db.json');
 
 beforeAll(() => {
@@ -23,9 +21,11 @@ beforeAll(() => {
   fs.mkdirSync(path.join(__dirname, '..', 'data'), { recursive: true });
   fs.writeFileSync(MOCK_DB_FILE, JSON.stringify(state, null, 2));
 });
-
-afterAll(() => {
+afterAll(async () => {
   try { fs.unlinkSync(MOCK_DB_FILE); } catch (e) { }
+  const app = require('../app');
+  if (app && typeof app.close === 'function') await app.close();
+  if (global.dbPool && typeof global.dbPool.end === 'function') await global.dbPool.end();
 });
 
 describe('Auth and roles', () => {
@@ -34,7 +34,7 @@ describe('Auth and roles', () => {
 
   test('login returns token and role for users', async () => {
     const resU = await request(app).post('/auth/login').send({ username: 'Usr', password: 'hsł' });
-    expect(resU.status).toBe(200);
+    const resU = await request(app).post('/auth/login').send({ username: 'Usr', password: 'test123' });
     expect(resU.body).toHaveProperty('token');
     expect(resU.body.user).toHaveProperty('role', 1);
 

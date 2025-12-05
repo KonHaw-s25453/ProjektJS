@@ -14,6 +14,12 @@ ON DUPLICATE KEY UPDATE username = username, password_hash = VALUES(password_has
 INSERT INTO users (username, display_name, password_hash, role) VALUES
 ('Usr', 'Test User', '$2a$10$47RQNjOHf4lQPxkYhcwB3OrwlHu5crK7/WoGdLSRvN9/lqDByKjNa', 1)
 ON DUPLICATE KEY UPDATE username = username, password_hash = VALUES(password_hash), role = VALUES(role);
+INSERT INTO users (username, display_name, password_hash, role) VALUES
+('tagger', 'Tag Test', '$2a$10$47RQNjOHf4lQPxkYhcwB3OrwlHu5crK7/WoGdLSRvN9/lqDByKjNa', 1)
+ON DUPLICATE KEY UPDATE username = username, password_hash = VALUES(password_hash), role = VALUES(role);
+INSERT INTO users (username, display_name, password_hash, role) VALUES
+('tester', 'Test Upload', '$2a$10$47RQNjOHf4lQPxkYhcwB3OrwlHu5crK7/WoGdLSRvN9/lqDByKjNa', 1)
+ON DUPLICATE KEY UPDATE username = username, password_hash = VALUES(password_hash), role = VALUES(role);
 
 -- Example tags
 INSERT INTO tags (name) VALUES ('ambient') ON DUPLICATE KEY UPDATE name=name;

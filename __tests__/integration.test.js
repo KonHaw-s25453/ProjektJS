@@ -111,6 +111,7 @@ describe('Integration: upload -> DB (real DB required)', () => {
     try {
       const app = require('../app');
       if (app && typeof app.close === 'function') await app.close();
+      if (global.dbPool && typeof global.dbPool.end === 'function') await global.dbPool.end();
     } catch (e) {
       // ignore
     }

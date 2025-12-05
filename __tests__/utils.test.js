@@ -2,9 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
-// require a fresh app instance
-const app = require('../app');
-const { tryParseVCV, extractModules } = app;
+// Ensure mock DB is used for all tests
+const { tryParseVCV, extractModules } = require('../models/user');
 
 test('tryParseVCV handles deflated JSON buffer', () => {
   const obj = { modules: [{ plugin: 'A', model: 'X' }] };

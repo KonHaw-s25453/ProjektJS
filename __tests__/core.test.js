@@ -1,4 +1,3 @@
-process.env.MOCK_DB = 'true';
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 function authHeaderFor(username, role = 1) { return `Bearer ${jwt.sign({ id: 1, username, role }, JWT_SECRET)}`; }
@@ -8,17 +7,10 @@ const zlib = require('zlib');
 const request = require('supertest');
 const app = require('../app');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const MOCK_DB_FILE = path.join(DATA_DIR, 'mock_db.json');
-
 beforeEach(() => {
-  // reset mock DB to empty state before each test
-  const state = { patches: [], modules: [], patch_modules: [], categories: [], users: [] };
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(MOCK_DB_FILE, JSON.stringify(state, null, 2));
-});
 
-afterAll(() => {
+
+afterAll(async () => {
   // clean up any tmp files created by tests under uploads
   try {
     const uploads = path.join(__dirname, '..', 'uploads', 'patches');
@@ -30,6 +22,9 @@ afterAll(() => {
       }
     }
   } catch (e) {}
+  const app = require('../app');
+  if (app && typeof app.close === 'function') await app.close();
+  if (global.dbPool && typeof global.dbPool.end === 'function') await global.dbPool.end();
 });
 
 test('upload of compressed .vcv (deflated JSON) parses and registers modules', async () => {

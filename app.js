@@ -1,296 +1,51 @@
-const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const zlib = require('zlib');
-const cors = require('cors');
-const dotenv = require('dotenv');
+require('dotenv').config();
 const rateLimit = require('express-rate-limit');
-const mysql = require('mysql2/promise');
-const bcrypt = require('bcryptjs');
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/', limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
+const express = require('express');
+const path = require('path');
+const cors = require('cors');
+const { loadMock, saveMock, MOCK_DB_FILE } = require('./models/mockDb');
+const fs = require('fs');
 const jwt = require('jsonwebtoken');
-
-dotenv.config();
-
-const UPLOAD_DIR = path.join(__dirname, 'uploads', 'patches');
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
-    const id = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, `${id}-${file.originalname}`);
-  }
-});
-
-// Accept only .vcv files and limit size to 5 MB
-const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
-  fileFilter: (req, file, cb) => {
-    const ext = path.extname(file.originalname || '').toLowerCase();
-    if (ext !== '.vcv') return cb(new Error('Invalid file type, only .vcv allowed'));
-    cb(null, true);
-  }
-});
+const bcrypt = require('bcryptjs');
+const { tryParseVCV, findUserByUsername, signToken } = require('./models/user');
+const allowOwnerOrAdmin = require('./middleware/allowOwnerOrAdmin');
+const requireAuth = require('./middleware/requireAuth');
+const MOCK_DB = process.env.MOCK_DB === 'true';
+let dbPool = null;
+const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
 const app = express();
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minut
+  max: 100, // limit 100 żądań na IP
+});
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-let dbPool = null;
-const MOCK_DB = process.env.MOCK_DB === '1' || process.env.MOCK_DB === 'true';
-let currentDbName = process.env.DB_NAME || null;
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
-
-// Rate limiter config (can be tuned via env vars)
-const RATE_WINDOW_MS = process.env.RATE_WINDOW_MS ? parseInt(process.env.RATE_WINDOW_MS, 10) : 60 * 1000; // default 1 minute
-const RATE_MAX = process.env.RATE_MAX ? parseInt(process.env.RATE_MAX, 10) : 10; // default max requests per window
-const limiter = rateLimit({
-  windowMs: RATE_WINDOW_MS,
-  max: RATE_MAX,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests' }
-});
-
-// Simple file-backed mock DB for testing without MySQL
-const MOCK_DB_FILE = path.join(__dirname, 'data', 'mock_db.json');
-fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
-function loadMock() {
-  if (fs.existsSync(MOCK_DB_FILE)) {
-    try { return JSON.parse(fs.readFileSync(MOCK_DB_FILE, 'utf8')); } catch (e) { }
-  }
-  return { patches: [], modules: [], patch_modules: [], categories: [], users: [], tags: [], patch_tags: [] };
-}
-function saveMock(state) { fs.writeFileSync(MOCK_DB_FILE, JSON.stringify(state, null, 2)); }
+// Import routów
+const patchRoutes = require('./routes/patch');
+const userRoutes = require('./routes/user');
+app.use('/api', patchRoutes);
+app.use('/api', userRoutes);
+// ...existing code...
 
 async function getDb() {
-  if (MOCK_DB) {
-    const state = loadMock();
-    return {
-      execute: async (sql, params = []) => {
-        const s = sql.trim().toUpperCase();
-        // handle module list for a given patch (JOIN query)
-        if (s.indexOf('FROM MODULES') !== -1 && s.indexOf('JOIN PATCH_MODULES') !== -1) {
-          const patchId = params[0];
-          const moduleIds = state.patch_modules.filter(pm => String(pm.patch_id) === String(patchId)).map(pm => pm.module_id);
-          const mods = state.modules.filter(m => moduleIds.includes(m.id)).map(m => ({ plugin: m.plugin, model: m.model, link: 'https://vcvrack.com/plugins.html?plugin=' + m.plugin }));
-          return [mods, null];
-        }
-        // SELECT file_path, description FROM patches WHERE id = ?
-        if (s.startsWith('SELECT FILE_PATH') && s.indexOf('FROM PATCHES') !== -1 && s.indexOf('WHERE') !== -1) {
-          const id = params[0];
-          const patch = state.patches.find(p => String(p.id) === String(id));
-          if (patch) return [[{ file_path: patch.file_path, description: patch.description }], null];
-          return [[null], null];
-        }
-
-        if (s.startsWith('SELECT * FROM PATCHES')) {
-          const id = params[0];
-          const patch = state.patches.find(p => String(p.id) === String(id));
-          return [[patch || null], null];
-        }
-
-              if (s.indexOf('FROM PATCHES P WHERE') !== -1) {
-                let rows = state.patches.slice().sort((a,b)=> new Date(b.uploaded_at) - new Date(a.uploaded_at));
-                if (params && params.length) {
-                  if (params[0]) rows = rows.filter(r => r.user_name === params[0]);
-                  if (params[1]) rows = rows.filter(r => String(r.category_id) === String(params[1]));
-                  if (params[2]) rows = rows.filter(r => new Date(r.uploaded_at) >= new Date(params[2]));
-                }
-                const enriched = rows.map(r => ({ ...r, module_count: state.patch_modules.filter(pm => String(pm.patch_id) === String(r.id)).length }));
-                return [enriched.slice(0,200), null];
-              }
-        if (s.startsWith('SELECT ID FROM MODULES WHERE')) {
-          const [plugin, model] = params;
-          const m = state.modules.find(x => x.plugin === plugin && x.model === model);
-          return [[...(m ? [{ id: m.id }] : [])], null];
-        }
-        // tags JOIN patch_tags for a given patch
-        if (s.indexOf('FROM TAGS') !== -1 && s.indexOf('JOIN PATCH_TAGS') !== -1) {
-          const patchId = params[0];
-          const tagIds = state.patch_tags.filter(pt => String(pt.patch_id) === String(patchId)).map(pt => pt.tag_id);
-          const tags = state.tags.filter(t => tagIds.includes(t.id)).map(t => ({ name: t.name }));
-          return [tags, null];
-        }
-        // select patch_id from patch_tags by tag_id
-        if (s.startsWith('SELECT PATCH_ID FROM PATCH_TAGS')) {
-          const tagId = params[0];
-          const rows = state.patch_tags.filter(pt => String(pt.tag_id) === String(tagId)).map(pt => ({ patch_id: pt.patch_id }));
-          return [rows, null];
-        }
-        // select id from tags where name = ?
-        if (s.startsWith('SELECT ID FROM TAGS WHERE')) {
-          const name = params[0];
-          const t = state.tags.find(x => x.name === name);
-          return [[...(t ? [{ id: t.id }] : [])], null];
-        }
-        return [[], null];
-      },
-      getConnection: async () => ({
-        beginTransaction: async () => {},
-        commit: async () => {},
-        rollback: async () => {},
-        release: () => {},
-        execute: async (sql, params = []) => {
-          const s = sql.trim().toUpperCase();
-          // handle module list for a given patch (JOIN query)
-          if (s.indexOf('FROM MODULES') !== -1 && s.indexOf('JOIN PATCH_MODULES') !== -1) {
-            const patchId = params[0];
-            const moduleIds = state.patch_modules.filter(pm => String(pm.patch_id) === String(patchId)).map(pm => pm.module_id);
-            const mods = state.modules.filter(m => moduleIds.includes(m.id)).map(m => ({ plugin: m.plugin, model: m.model, link: 'https://vcvrack.com/plugins.html?plugin=' + m.plugin }));
-            return [mods, null];
-          }
-          if (s.startsWith('INSERT INTO PATCHES')) {
-            const [user, category_id, file_path, description] = params;
-            const id = state.patches.length ? Math.max(...state.patches.map(p=>p.id)) + 1 : 1;
-            const uploaded_at = new Date().toISOString();
-            const p = { id, user_name: user, category_id: category_id || null, file_path, description, uploaded_at };
-            state.patches.push(p);
-            saveMock(state);
-            return [{ insertId: id }, null];
-          }
-          if (s.startsWith('INSERT INTO MODULES')) {
-            const [plugin, model] = params;
-            const id = state.modules.length ? Math.max(...state.modules.map(m=>m.id)) + 1 : 1;
-            state.modules.push({ id, plugin, model });
-            saveMock(state);
-            return [{ insertId: id }, null];
-          }
-          // INSERT INTO tags (name)
-          if (s.startsWith('INSERT INTO TAGS')) {
-            const [name] = params;
-            const id = state.tags.length ? Math.max(...state.tags.map(t=>t.id)) + 1 : 1;
-            state.tags.push({ id, name });
-            saveMock(state);
-            return [{ insertId: id }, null];
-          }
-          // SELECT id FROM tags WHERE name = ?
-          if (s.startsWith('SELECT ID FROM TAGS WHERE')) {
-            const [name] = params;
-            const t = state.tags.find(x => x.name === name);
-            return [[...(t ? [{ id: t.id }] : [])], null];
-          }
-          if (s.startsWith('INSERT INTO PATCH_MODULES')) {
-            const [patch_id, module_id] = params;
-            state.patch_modules.push({ patch_id, module_id });
-            saveMock(state);
-            return [{ affectedRows: 1 }, null];
-          }
-          // INSERT INTO PATCH_TAGS (patch_id, tag_id)
-          if (s.startsWith('INSERT INTO PATCH_TAGS')) {
-            const [patch_id, tag_id] = params;
-            state.patch_tags.push({ patch_id, tag_id });
-            saveMock(state);
-            return [{ affectedRows: 1 }, null];
-          }
-          return [[], null];
-        }
-      })
-    };
+  if (!dbPool) {
+    dbPool = await require('mysql2/promise').createPool({
+      host: process.env.DB_HOST || '127.0.0.1',
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASS || '',
+      database: process.env.DB_NAME || 'vcv',
+      port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 3306,
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0
+    });
   }
-
-  if (dbPool) return dbPool;
-  // If DB_NAME changed after a pool was created in a different test/setup,
-  // recreate the pool so tests that set env before requiring app work correctly.
-  if (!process.env.DB_HOST) return null;
-  if (currentDbName && process.env.DB_NAME && currentDbName !== process.env.DB_NAME) {
-    try {
-      await dbPool.end();
-    } catch (e) { /* ignore */ }
-    dbPool = null;
-  }
-  const dbHost = process.env.DB_HOST ? String(process.env.DB_HOST).trim() : '127.0.0.1';
-  const dbPort = process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : undefined;
-  const poolConfig = {
-    host: dbHost,
-    user: process.env.DB_USER ? String(process.env.DB_USER).trim() : 'root',
-    password: process.env.DB_PASS ? String(process.env.DB_PASS).trim() : '',
-    database: process.env.DB_NAME || 'vcv',
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
-  };
-  if (dbPort) poolConfig.port = dbPort;
-  dbPool = await mysql.createPool(poolConfig);
-  console.log('Created DB pool with config:', { host: poolConfig.host, port: poolConfig.port, database: poolConfig.database, user: poolConfig.user });
-  currentDbName = poolConfig.database;
   return dbPool;
-}
-
-function tryParseVCV(buffer) {
-  try {
-    const inflated = zlib.inflateSync(buffer);
-    const text = inflated.toString('utf8');
-    try {
-      return JSON.parse(text);
-    } catch (e) {
-      return { raw: text };
-    }
-  } catch (e) {
-    try {
-      const text = buffer.toString('utf8');
-      return JSON.parse(text);
-    } catch (err) {
-      return null;
-    }
-  }
-}
-
-// --- Authentication helpers ---
-async function findUserByUsername(db, username) {
-  if (MOCK_DB) {
-    const state = loadMock();
-    const u = (state.users || []).find(x => String(x.username) === String(username));
-    return u ? { id: u.id, username: u.username, password_hash: u.password_hash, role: u.role } : null;
-  }
-  const [[row]] = await db.execute('SELECT id, username, password_hash, role FROM users WHERE username = ? LIMIT 1', [username]);
-  return row || null;
-}
-
-function signToken(user) {
-  return jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '8h' });
-}
-
-function requireAuth(req, res, next) {
-  const auth = req.headers && req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
-  const token = auth.slice(7);
-  try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    req.user = { id: payload.id, username: payload.username, role: payload.role };
-    return next();
-  } catch (e) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-}
-
-function requireRole(minRole) {
-  return (req, res, next) => {
-    if (!req.user) return res.status(401).json({ error: 'Authentication required' });
-    if ((req.user.role || 0) < minRole) return res.status(403).json({ error: 'Insufficient role' });
-    return next();
-  };
-}
-
-function allowOwnerOrAdmin(getOwnerUsername) {
-  return async (req, res, next) => {
-    // must be authenticated
-    const auth = req.headers && req.headers.authorization;
-    if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Authentication required' });
-    try {
-      const payload = jwt.verify(auth.slice(7), JWT_SECRET);
-      req.user = { id: payload.id, username: payload.username, role: payload.role };
-    } catch (e) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-    const owner = await getOwnerUsername(req);
-    if (!owner) return res.status(404).json({ error: 'Resource owner not found' });
-    if (req.user.role >= 2 || req.user.username === owner) return next();
-    return res.status(403).json({ error: 'Forbidden' });
-  };
 }
 
 // Auth routes
@@ -311,18 +66,20 @@ app.post('/auth/login', async (req, res) => {
     res.status(500).json({ error: 'Login failed' });
   }
 });
-
+// ...existing code...
 // List users (admin+)
-app.get('/users', requireAuth, requireRole(2), async (req, res) => {
-  const db = await getDb();
-  if (!db) return res.status(500).json({ error: 'DB not configured' });
+app.get('/users', requireAuth, async (req, res) => {
+  // Only admin (role 2) or owner (role 3) can list users
+  if (!req.user || req.user.role < 2) return res.status(403).json({ error: 'Admin or owner required' });
   if (MOCK_DB) {
     const state = loadMock();
     return res.json({ users: state.users || [] });
   }
+  const db = await getDb();
   const [rows] = await db.execute('SELECT id, username, display_name, role, created_at FROM users');
   res.json({ users: rows });
 });
+// ...existing code...
 
 // Promote/demote user (owner only)
 app.post('/users/:username/role', requireAuth, async (req, res) => {
@@ -332,12 +89,6 @@ app.post('/users/:username/role', requireAuth, async (req, res) => {
   if (typeof role !== 'number' || role < 0 || role > 3) return res.status(400).json({ error: 'Invalid role' });
   const db = await getDb();
   if (!db) return res.status(500).json({ error: 'DB not configured' });
-  if (MOCK_DB) {
-    const state = loadMock();
-    const u = state.users.find(x => x.username === target);
-    if (!u) return res.status(404).json({ error: 'User not found' });
-    u.role = role; saveMock(state); return res.json({ ok: true, user: u });
-  }
   await db.execute('UPDATE users SET role = ? WHERE username = ?', [role, target]);
   res.json({ ok: true });
 });
@@ -393,6 +144,10 @@ app.post('/upload', limiter, requireAuth, upload.single('vcv'), async (req, res)
   try {
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'No file uploaded (field name "vcv")' });
+    // Validate file extension
+    if (!file.originalname.toLowerCase().endsWith('.vcv')) {
+      return res.status(400).json({ error: 'Invalid file extension. Only .vcv files are allowed.' });
+    }
     const { category = null, description = null } = req.body;
     const authUser = req.user && req.user.username ? req.user.username : null;
     if (!authUser) return res.status(401).json({ error: 'Authentication required for upload' });
@@ -593,18 +348,15 @@ app.get('/download/:id', async (req, res) => {
   res.download(patch.file_path);
 });
 
-module.exports = app;
-// export helper functions for unit testing
-module.exports.tryParseVCV = tryParseVCV;
-module.exports.extractModules = extractModules;
-// graceful shutdown helper for tests/CI
-module.exports.close = async () => {
-  try {
-    if (dbPool) {
+// Add a .close() method for Jest test cleanup
+app.close = async function() {
+  if (dbPool && typeof dbPool.end === 'function') {
+    try {
       await dbPool.end();
-      dbPool = null;
+    } catch (e) {
+      // ignore errors during cleanup
     }
-  } catch (e) {
-    console.error('Error closing DB pool', e);
+    dbPool = null;
   }
 };
+module.exports = app;

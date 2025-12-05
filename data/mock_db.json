@@ -2,15 +2,29 @@
   "patches": [
     {
       "id": 1,
-      "user_name": "fixtureUser",
       "category_id": null,
-      "file_path": "C:\\Users\\konhaw\\Desktop\\Uczelnia\\JS\\Projekt\\uploads\\patches\\1764524606668-177337431-test.vcv",
-      "description": "fixture upload",
-      "uploaded_at": "2025-11-30T17:43:26.672Z"
+      "uploaded_at": "2025-12-05T21:19:31.279Z"
+    },
+    {
+      "id": 2,
+      "category_id": null,
+      "uploaded_at": "2025-12-05T21:19:31.295Z"
+    },
+    {
+      "id": 3,
+      "category_id": null,
+      "uploaded_at": "2025-12-05T21:21:37.036Z"
+    },
+    {
+      "id": 4,
+      "category_id": null,
+      "uploaded_at": "2025-12-05T21:21:37.052Z"
     }
   ],
   "modules": [],
   "patch_modules": [],
   "categories": [],
-  "users": []
+  "users": [],
+  "tags": [],
+  "patch_tags": []
 }

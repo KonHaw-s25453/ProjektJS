@@ -1,21 +1,33 @@
 const request = require('supertest');
 const fs = require('fs');
 const path = require('path');
-const jwt = require('jsonwebtoken');
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
-function authHeaderFor(username, role = 1) { return `Bearer ${jwt.sign({ id: 1, username, role }, JWT_SECRET)}`; }
+const mysql = require('mysql2/promise');
+const { findUserByUsername, signToken } = require('../models/user');
+async function authHeaderFor(username) {
+  const db = await mysql.createConnection({
+    host: process.env.DB_HOST || '127.0.0.1',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASS || '',
+    database: process.env.DB_NAME || 'vcv',
+  });
+  const user = await findUserByUsername(db, username);
+  await db.end();
+  if (!user) throw new Error('User not found: ' + username);
+  return `Bearer ${signToken(user)}`;
+}
 const app = require('../app');
 
 describe('Upload limits and validation', () => {
   afterAll(async () => {
-    if (app && app.close) await app.close();
+    if (app && typeof app.close === 'function') await app.close();
+    if (global.dbPool && typeof global.dbPool.end === 'function') await global.dbPool.end();
   });
 
   test('accepts small .vcv file', async () => {
     const buf = Buffer.from(JSON.stringify({ test: true }));
     const res = await request(app)
       .post('/upload')
-      .set('Authorization', authHeaderFor('tester'))
+      .set('Authorization', await authHeaderFor('tester'))
       .attach('vcv', buf, 'small.vcv');
 
     expect(res.statusCode).toBe(200);
@@ -26,7 +38,7 @@ describe('Upload limits and validation', () => {
     const big = Buffer.alloc(6 * 1024 * 1024, 0); // 6 MB
     const res = await request(app)
       .post('/upload')
-      .set('Authorization', authHeaderFor('tester'))
+      .set('Authorization', await authHeaderFor('tester'))
       .attach('vcv', big, 'big.vcv');
 
     // multer should trigger LIMIT_FILE_SIZE -> 413
@@ -39,7 +51,7 @@ describe('Upload limits and validation', () => {
     const buf = Buffer.from('not a vcv');
     const res = await request(app)
       .post('/upload')
-      .set('Authorization', authHeaderFor('tester'))
+      .set('Authorization', await authHeaderFor('tester'))
       .attach('vcv', buf, 'bad.txt');
 
     expect(res.statusCode).toBe(400);
