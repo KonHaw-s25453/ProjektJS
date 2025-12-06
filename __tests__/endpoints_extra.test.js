@@ -1,3 +1,12 @@
+afterAll(async () => {
+  if (global.__TEST_SERVER__ && global.__TEST_SERVER__.close) {
+    try {
+      await global.__TEST_SERVER__.close();
+    } catch (e) {}
+  }
+  const app = require('../app');
+  if (app && typeof app.close === 'function') await app.close();
+});
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
@@ -10,13 +19,24 @@ async function authHeaderFor(username) {
     database: process.env.DB_NAME || 'vcv',
   });
   const user = await findUserByUsername(db, username);
-  await db.end();
   if (!user) throw new Error('User not found: ' + username);
   return `Bearer ${signToken(user)}`;
 }
 
 describe('endpoint extra behaviors', () => {
   beforeEach(() => { process.env.MOCK_DB = 'true'; });
+  const { addUser } = require('../models/user');
+  
+  beforeAll(async () => {
+    const db = await mysql.createConnection({
+      host: process.env.DB_HOST || '127.0.0.1',
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASS || '',
+      database: process.env.DB_NAME || 'vcv',
+    });
+    await db.query('DELETE FROM users WHERE username = "tester"');
+    await addUser(db, { username: 'tester', passwordHash: 'test', display_name: 'Tester', role: 1 });
+      // Do not close db here; global teardown will handle it.
 
   test('GET /download/:id returns 404 for missing patch', async () => {
     jest.resetModules();

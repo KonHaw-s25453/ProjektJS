@@ -1,32 +1,25 @@
+const setupTestDb = require('./setupTestDb');
+
 const request = require('supertest');
-const path = require('path');
-const fs = require('fs');
+const mysql = require('mysql2/promise');
+const { addUser } = require('../models/user');
+let db;
 
-const MOCK_DB_FILE = path.join(__dirname, '..', 'data', 'mock_db.json');
-
-beforeAll(() => {
-  const state = {
-    users: [
-      { id: 1, username: 'Własc', display_name: 'Właściciel', password_hash: '$2a$10$D6Lv0plfMHjZ7f78K2J2mucZsj/BGcZZdfIOVZZrzRnyqm/ZBmbEe', role: 3 },
-      { id: 2, username: 'Adm', display_name: 'Test Admin', password_hash: '$2a$10$KFG5/TKhU6VMj7T6MJ6k3.tq0grqQn5ZI8LkPwLCKiN7sFVPrX5.6', role: 2 },
-      { id: 3, username: 'Usr', display_name: 'Test User', password_hash: '$2a$10$47RQNjOHf4lQPxkYhcwB3OrwlHu5crK7/WoGdLSRvN9/lqDByKjNa', role: 1 }
-    ],
-    patches: [],
-    modules: [],
-    patch_modules: [],
-    tags: [],
-    patch_tags: [],
-    categories: []
-  };
-  fs.mkdirSync(path.join(__dirname, '..', 'data'), { recursive: true });
-  fs.writeFileSync(MOCK_DB_FILE, JSON.stringify(state, null, 2));
+beforeAll(async () => {
+  await setupTestDb();
+  db = await mysql.createConnection({
+    host: process.env.DB_HOST || '127.0.0.1',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASS || '',
+    database: process.env.DB_NAME || 'vcv',
+  });
+  // Wyczyść i zainicjuj użytkowników testowych
+  await db.query('DELETE FROM users WHERE username IN ("Własc", "Adm", "Usr")');
+  await addUser(db, { username: 'Własc', passwordHash: '$2a$10$D6Lv0plfMHjZ7f78K2J2mucZsj/BGcZZdfIOVZZrzRnyqm/ZBmbEe', display_name: 'Właściciel', role: 3 });
+  await addUser(db, { username: 'Adm', passwordHash: '$2a$10$KFG5/TKhU6VMj7T6MJ6k3.tq0grqQn5ZI8LkPwLCKiN7sFVPrX5.6', display_name: 'Test Admin', role: 2 });
+  await addUser(db, { username: 'Usr', passwordHash: '$2a$10$47RQNjOHf4lQPxkYhcwB3OrwlHu5crK7/WoGdLSRvN9/lqDByKjNa', display_name: 'Test User', role: 1 });
 });
-afterAll(async () => {
-  try { fs.unlinkSync(MOCK_DB_FILE); } catch (e) { }
-  const app = require('../app');
-  if (app && typeof app.close === 'function') await app.close();
-  if (global.dbPool && typeof global.dbPool.end === 'function') await global.dbPool.end();
-});
+// No local teardown; global teardown will handle connection closing.
 
 describe('Auth and roles', () => {
   let app;
@@ -34,7 +27,6 @@ describe('Auth and roles', () => {
 
   test('login returns token and role for users', async () => {
     const resU = await request(app).post('/auth/login').send({ username: 'Usr', password: 'hsł' });
-    const resU = await request(app).post('/auth/login').send({ username: 'Usr', password: 'test123' });
     expect(resU.body).toHaveProperty('token');
     expect(resU.body.user).toHaveProperty('role', 1);
 

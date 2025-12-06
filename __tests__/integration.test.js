@@ -21,10 +21,7 @@ describe('Integration: upload -> DB (real DB required)', () => {
   let dbConn; // connection to test DB for verification
 
   beforeAll(async () => {
-    if (!process.env.REAL_DB) {
-      console.warn('Skipping integration tests (set REAL_DB=1 to enable)');
-      return;
-    }
+    // Always run integration test and use the database
 
     const adminOpts = {
       host: process.env.DB_HOST ? String(process.env.DB_HOST).trim() : '127.0.0.1',
@@ -118,41 +115,40 @@ describe('Integration: upload -> DB (real DB required)', () => {
   });
 
   test('uploads Test.vcv and creates a patch row', async () => {
-    if (!process.env.REAL_DB) return;
-
+    // Always run integration test and use the database
+    const fixture = path.resolve(__dirname, '..', 'Test.vcv');
+    if (!fs.existsSync(fixture)) {
+      console.warn('Test.vcv not found, skipping integration test');
+      return;
+    }
+    // Debug: log file path and size
+    const stats = require('fs').statSync(fixture);
+    console.log('DEBUG integration.test.js: fixture path', fixture, 'size', stats.size);
     // require the app after env is set so it will use test DB
     const jwt = require('jsonwebtoken');
     const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
     function authHeaderFor(username, role = 1) { return `Bearer ${jwt.sign({ id: 1, username, role }, JWT_SECRET)}`; }
     const app = require('../app');
-
-    const fixture = path.join(__dirname, '..', 'Test.vcv');
     const res = await request(app)
       .post('/upload')
       .set('Authorization', authHeaderFor('test-integration'))
       .field('category', '1')
-      .attach('vcv', fixture);
-
+      .attach('vcv', fixture, path.basename(fixture));
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('ok', true);
     expect(res.body).toHaveProperty('patchId');
-
     const patchId = res.body.patchId;
-
     // verify via the app endpoint to ensure we read through the same DB/pool
     const getRes = await request(app).get(`/patches/${patchId}`);
     expect(getRes.status).toBe(200);
     expect(getRes.body).toHaveProperty('patch');
     expect(getRes.body.patch).toHaveProperty('id', patchId);
     expect(getRes.body.patch).toHaveProperty('user_name', 'test-integration');
-
     // remove uploaded file that the app saved
     const filePath = getRes.body.patch.file_path;
     if (filePath && fs.existsSync(filePath)) {
       try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
     }
-
-    // cleanup inserted rows (in test DB)
     // cleanup inserted rows (in test DB) via dbConn if available
     try {
       await dbConn.execute('DELETE FROM patch_tags WHERE patch_id = ?', [patchId]);

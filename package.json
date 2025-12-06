@@ -11,6 +11,7 @@
     "seed:sql": "mysql -u $DB_USER -p$DB_PASS $DB_NAME < seeds.sql",
     "seed:node": "node scripts/seed.js",
     "test": "jest --runInBand",
+    "test:out": "powershell -Command \"npx jest --runInBand --detectOpenHandles > test-results.txt 2>&1\"",
     "test:record": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\run_tests.ps1",
     "test:integration": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$env:REAL_DB='1'; & '.\\scripts\\run_tests.ps1'\"",
     "test:integration:ci": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\run_tests.ps1 -OutFile .\\test-results-real.txt -JsonFile .\\test-results-real.json -JUnitFile .\\test-results-real.xml"
@@ -33,7 +34,9 @@
   },
   "jest": {
     "testEnvironment": "node",
-    "testTimeout": 10000
+    "testTimeout": 10000,
+    "setupFilesAfterEnv": ["<rootDir>/jest.setupServer.js"],
+    "forceExit": true
   },
   "keywords": [],
   "author": "",

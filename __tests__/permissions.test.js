@@ -1,12 +1,5 @@
 const request = require('supertest');
-beforeAll(() => {
-afterAll(async () => {
-
-afterAll(async () => {
-  const app = require('../app');
-  if (app && typeof app.close === 'function') await app.close();
-  if (global.dbPool && typeof global.dbPool.end === 'function') await global.dbPool.end();
-});
+// No local beforeAll/afterAll needed; global teardown handles cleanup
 describe('Permissions matrix', () => {
   let app;
   let tokens = {};

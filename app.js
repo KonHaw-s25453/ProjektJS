@@ -9,7 +9,7 @@ const { loadMock, saveMock, MOCK_DB_FILE } = require('./models/mockDb');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { tryParseVCV, findUserByUsername, signToken } = require('./models/user');
+const { tryParseVCV, findUserByUsername, signToken, extractModules } = require('./models/user');
 const allowOwnerOrAdmin = require('./middleware/allowOwnerOrAdmin');
 const requireAuth = require('./middleware/requireAuth');
 const MOCK_DB = process.env.MOCK_DB === 'true';
@@ -46,32 +46,61 @@ async function getDb() {
       host: process.env.DB_HOST || '127.0.0.1',
       user: process.env.DB_USER || 'root',
       password: process.env.DB_PASS || '',
+      database: process.env.DB_NAME || 'vcv',
       // ...existing code for real DB...
     });
+    global.dbPool = dbPool;
   }
   return dbPool;
 }
 
 // Move upload handler code outside getDb function
 app.post('/upload', upload.single('vcv'), limiter, requireAuth, async (req, res) => {
+    console.log('DEBUG Multer:', { file: req.file, files: req.files, body: req.body, headers: req.headers });
   try {
     const file = req.file;
-    if (!file) return res.status(400).json({ error: 'No file uploaded (field name "vcv")' });
+    if (!file) {
+      console.error('No file uploaded:', req.body, req.headers);
+      return res.status(400).json({ error: 'No file uploaded (field name "vcv")' });
+    }
     // Validate file extension
     if (!file.originalname.toLowerCase().endsWith('.vcv')) {
+      console.error('Invalid file extension:', file.originalname);
       return res.status(400).json({ error: 'Invalid file extension. Only .vcv files are allowed.' });
     }
     const { category = null, description = null } = req.body;
     const authUser = req.user && req.user.username ? req.user.username : null;
-    if (!authUser) return res.status(401).json({ error: 'Authentication required for upload' });
-    const buffer = fs.readFileSync(file.path);
-    const parsed = tryParseVCV(buffer);
-    const modules = extractModules(parsed);
+    if (!authUser) {
+      console.error('Authentication required for upload:', req.user);
+      return res.status(401).json({ error: 'Authentication required for upload' });
+    }
+    let buffer;
+    try {
+      buffer = fs.readFileSync(file.path);
+    } catch (e) {
+      console.error('Failed to read uploaded file:', file.path, e);
+      return res.status(500).json({ error: 'Failed to read uploaded file', details: String(e) });
+    }
+    let parsed;
+    try {
+      parsed = tryParseVCV(buffer);
+    } catch (e) {
+      console.error('Failed to parse VCV file:', e);
+      return res.status(400).json({ error: 'Failed to parse VCV file', details: String(e) });
+    }
+    let modules;
+    try {
+      modules = extractModules(parsed);
+    } catch (e) {
+      console.error('Failed to extract modules:', e);
+      modules = [];
+    }
     const db = await getDb();
     let patchId = null;
     if (db) {
-      const conn = await db.getConnection();
+      let conn;
       try {
+        conn = await db.getConnection();
         try {
           const [[dbInfo]] = await conn.execute("SELECT DATABASE() AS dbname");
           console.log('App connection DATABASE():', dbInfo && dbInfo.dbname);
@@ -98,17 +127,16 @@ app.post('/upload', upload.single('vcv'), limiter, requireAuth, async (req, res)
         await conn.commit();
       } catch (err) {
         try { await conn.rollback(); } catch (e) { console.error('Rollback failed', e); }
-        console.error('DB transaction failed', err);
-        conn.release();
+        console.error('DB transaction failed:', err);
+        if (conn) try { conn.release(); } catch (e) { /* ignore */ }
         return res.status(500).json({ error: 'DB transaction failed', details: String(err) });
       } finally {
-        // release only if not released above
-        try { conn.release(); } catch (e) { /* ignore */ }
+        if (conn) try { conn.release(); } catch (e) { /* ignore */ }
       }
     }
     res.json({ ok: true, parsed: !!parsed, modules, patchId, path: file.path });
   } catch (err) {
-    console.error(err);
+    console.error('Upload handler failed:', err);
     res.status(500).json({ error: 'Upload failed', details: String(err) });
   }
 });
@@ -272,4 +300,5 @@ app.close = async function() {
     dbPool = null;
   }
 };
+app.getDb = getDb;
 module.exports = app;

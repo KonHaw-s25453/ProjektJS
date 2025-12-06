@@ -1,3 +1,6 @@
+INSERT INTO users (username, display_name, password_hash, role) VALUES
+('test-integration', 'Integration Test', '$2a$10$47RQNjOHf4lQPxkYhcwB3OrwlHu5crK7/WoGdLSRvN9/lqDByKjNa', 1)
+ON DUPLICATE KEY UPDATE username = username, password_hash = VALUES(password_hash), role = VALUES(role);
 -- Example seeds for categories and a demo user
 INSERT INTO categories (name) VALUES ('Ambient') ON DUPLICATE KEY UPDATE name=name;
 INSERT INTO categories (name) VALUES ('Bass') ON DUPLICATE KEY UPDATE name=name;

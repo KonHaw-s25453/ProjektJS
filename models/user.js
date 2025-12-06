@@ -1,3 +1,4 @@
+
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
@@ -5,21 +6,24 @@ function signToken(user) {
   return jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
 }
 
-const { loadMock, saveMock } = require('./mockDb');
-
-function getUserByName(name) {
-  const state = loadMock();
-  return state.users.find(u => u.name === name) || null;
+// Async: pobierz użytkownika po nazwie z MySQL
+async function getUserByName(db, username) {
+  if (!db) return null;
+  const [[row]] = await db.execute('SELECT id, username, password_hash, role FROM users WHERE username = ? LIMIT 1', [username]);
+  return row || null;
 }
 
-function addUser({ name, passwordHash }) {
-  const state = loadMock();
-  const id = state.users.length ? Math.max(...state.users.map(u => u.id)) + 1 : 1;
-  const user = { id, name, passwordHash };
-  state.users.push(user);
-  saveMock(state);
-  return user;
+// Async: dodaj użytkownika do MySQL
+async function addUser(db, { username, passwordHash, display_name = null, role = 1 }) {
+  if (!db) throw new Error('Brak połączenia z bazą');
+  const [result] = await db.execute(
+    'INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)',
+    [username, passwordHash, display_name, role]
+  );
+  const id = result.insertId;
+  return { id, username, passwordHash, display_name, role };
 }
+
 
 function tryParseVCV(buffer) {
   const zlib = require('zlib');
@@ -41,6 +45,7 @@ function tryParseVCV(buffer) {
   }
 }
 
+
 function extractModules(parsed) {
   const modules = [];
   if (!parsed) return modules;
@@ -60,18 +65,11 @@ function extractModules(parsed) {
   });
 }
 
-// Find user by username (for real DB, this should be async and use DB connection)
-async function findUserByUsername(db, username) {
-  if (!db) return null;
-  const [[row]] = await db.execute('SELECT id, username, password_hash, role FROM users WHERE username = ? LIMIT 1', [username]);
-  return row || null;
-}
 
 module.exports = {
   getUserByName,
   addUser,
   tryParseVCV,
   extractModules,
-  findUserByUsername,
   signToken
 };

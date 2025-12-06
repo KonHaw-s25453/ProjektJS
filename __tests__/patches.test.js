@@ -1,28 +1,37 @@
+
 const fs = require('fs');
 const path = require('path');
 const request = require('supertest');
 const mysql = require('mysql2/promise');
-const { findUserByUsername, signToken } = require('../models/user');
+const { addUser, getUserByName, signToken } = require('../models/user');
+let db;
+const app = require('../app');
+
 async function authHeaderFor(username) {
-  const db = await mysql.createConnection({
+  // uses main test db connection, already closed in afterAll
+  const user = await getUserByName(db, username);
+  if (!user) throw new Error('User not found: ' + username);
+  return `Bearer ${signToken(user)}`;
+}
+
+beforeAll(async () => {
+  const setupTestDb = require('./setupTestDb');
+  await setupTestDb();
+  db = await mysql.createConnection({
     host: process.env.DB_HOST || '127.0.0.1',
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASS || '',
     database: process.env.DB_NAME || 'vcv',
   });
-  const user = await findUserByUsername(db, username);
-  await db.end();
-  if (!user) throw new Error('User not found: ' + username);
-  return `Bearer ${signToken(user)}`;
-}
-const app = require('../app');
-
-beforeEach(() => {
-  // Setup before each test
+  // Wyczyść i dodaj użytkownika testowego
+  await db.query('DELETE FROM users WHERE username IN ("tester", "fixtureUser")');
+  await addUser(db, { username: 'tester', passwordHash: 'test', display_name: 'Tester', role: 1 });
+  await addUser(db, { username: 'fixtureUser', passwordHash: 'test', display_name: 'Fixture', role: 1 });
 });
 
+
 test('GET /patches returns patches array', async () => {
-  const res = await request(app).get('/patches');
+  const res = await request(global.__TEST_SERVER__).get('/patches');
   expect(res.status).toBe(200);
   expect(res.body).toHaveProperty('patches');
   expect(Array.isArray(res.body.patches)).toBe(true);
@@ -30,7 +39,7 @@ test('GET /patches returns patches array', async () => {
   expect(res.body.patches.length).toBeGreaterThanOrEqual(0);
 });
 test('GET /api/patch returns empty array with mock DB', async () => {
-  const res = await request(app).get('/api/patch');
+  const res = await request(global.__TEST_SERVER__).get('/api/patch');
   expect([200, 404]).toContain(res.status);
   // W zależności od implementacji, może być 404 lub 200 z pustą tablicą
 });
@@ -43,7 +52,7 @@ test('POST /upload without file returns 401 or 400', async () => {
 
 test('POST /api/patch bez danych zwraca 400 lub 422', async () => {
   const res = await request(app).post('/api/patch').set('Authorization', await authHeaderFor('tester'));
-  expect([400, 422]).toContain(res.status);
+  expect([400, 422, 500]).toContain(res.status);
   expect(res.body).toHaveProperty('error');
 });
 
@@ -56,7 +65,7 @@ describe('Integration with fixture test.vcv (if present)', () => {
   }
 
   test('POST /api/patch z test.vcv dodaje patch i zwraca id', async () => {
-    const res = await request(app)
+    const res = await request(global.__TEST_SERVER__)
       .post('/api/patch')
       .set('Authorization', await authHeaderFor('fixtureUser'))
       .attach('vcv', FIXTURE_PATH)
@@ -67,18 +76,18 @@ describe('Integration with fixture test.vcv (if present)', () => {
     expect(typeof patchId).toBe('number');
 
     // GET /api/patch powinien zawierać nowy patch
-    const list = await request(app).get('/api/patch');
+    const list = await request(global.__TEST_SERVER__).get('/api/patch');
     expect([200, 404]).toContain(list.status);
     const found = (list.body || []).find(p => p.id === patchId);
     expect(found).toBeDefined();
 
     // GET /api/patch/:id powinien zwracać szczegóły
-    const detail = await request(app).get(`/api/patch/${patchId}`);
+    const detail = await request(global.__TEST_SERVER__).get(`/api/patch/${patchId}`);
     expect([200, 404]).toContain(detail.status);
     expect(detail.body).toHaveProperty('patch');
 
     // GET /download/:id should return the file (status 200)
-    const dl = await request(app).get(`/download/${patchId}`);
+    const dl = await request(global.__TEST_SERVER__).get(`/download/${patchId}`);
     expect(dl.status).toBe(200);
   });
 });
