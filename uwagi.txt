@@ -1,0 +1,45 @@
+# Uwagi do projektu (niezawarte w projekt.txt)
+
+1. **Bezpieczeństwo uploadu i dekompresji**
+   - Dodano limit rozmiaru po dekompresji pliku (.vcv) do 20MB, aby zabezpieczyć przed bombą dekompresyjną.
+   - Plik po dekompresji nie musi mieć rozszerzenia .json – liczy się poprawność formatu JSON.
+
+2. **Obsługa plików .vcv**
+   - Pliki .vcv są dekompresowane za pomocą zlib.inflateSync.
+   - Po dekompresji następuje parsowanie JSON i wyciąganie danych o patchu/modułach.
+
+3. **Brak mockowania bazy danych**
+   - Cały projekt korzysta z prawdziwej bazy MySQL, nie ma już logiki mockDb.
+
+4. **Minimalizacja kodu i testów**
+   - Usunięto zbędne endpointy, pliki i testy – zostawiono tylko niezbędne do działania projektu.
+   - Testy sprawdzają tylko podstawowe przypadki działania endpointów.
+
+5. **Wyciąganie danych z patcha**
+   - Z pliku patch (JSON) wyciągane są dane o modułach (pole `modules` lub `plugins`).
+   - Dane te są zapisywane do bazy danych.
+
+6. **Wyjaśnienia i komentarze**
+   - Kod został opatrzony komentarzami wyjaśniającymi kluczowe fragmenty (np. dekompresja, limity, parsowanie JSON).
+
+7. **Zgodność z projekt.txt**
+   - Projekt spełnia wymagania z projekt.txt, a dodatkowe zabezpieczenia i uproszczenia zostały opisane tutaj.
+
+8. **Brak mockowania użytkowników**
+   - Autentykacja i role użytkowników mają być realizowane na prawdziwych danych (jeśli zostaną zaimplementowane).
+
+9. **Zalecenia**
+   - W razie rozbudowy projektu należy pamiętać o bezpieczeństwie uploadu i walidacji danych wejściowych, ale bez nadmiernego komplikowania kodu.
+
+10.
+Niezalogowany - Może przeglądać publiczne patche. Wyszukiwać patche po nazwie, tagu lub autorze.
+Zalogowany - Może dodawać i przeglądać swoje patche. Upubliczniać patche. Kasować swoje patche. Dodawać notatki i tag do swoich patchy.
+Admin - Może zarządzać użytkownikami i patchami. Może usuwać dowolne patche i edytować je. Tak samo notatki i tagi. Każda zmiana przez admina jest logowana do pliku tekstowego.
+Właściciel - pełne prawa do wszystkiego, włącznie z zarządzaniem adminami i właścicielami. Może nadawać i odbierać role innym użytkownikom. Może przeglądać logi zmian dokonanych przez adminów. Musi być co najmniej jeden właściciel w systemie.
+
+Każdy poziom może to co poziom niższy.
+
+11. Dodać możliwość dodawania notatek i tagów do patchy przez użytkowników.
+12. Dodać możliwość pobierania patchy w formacie .vcv.
+
+Ten plik zawiera wszystkie dodatkowe ustalenia i uproszczenia, które nie były wprost opisane w projekt.txt, ale zostały wprowadzone podczas pracy nad projektem.

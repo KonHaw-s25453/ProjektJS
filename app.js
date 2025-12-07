@@ -5,14 +5,9 @@ const upload = multer({ dest: 'uploads/', limits: { fileSize: 10 * 1024 * 1024 }
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
-const { loadMock, saveMock, MOCK_DB_FILE } = require('./models/mockDb');
 const fs = require('fs');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const { tryParseVCV, findUserByUsername, signToken, extractModules } = require('./models/user');
-const allowOwnerOrAdmin = require('./middleware/allowOwnerOrAdmin');
-const requireAuth = require('./middleware/requireAuth');
-const MOCK_DB = process.env.MOCK_DB === 'true';
+const zlib = require('zlib');
+
 let dbPool = null;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
@@ -25,37 +20,23 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Import routów
-const patchRoutes = require('./routes/patch');
-const userRoutes = require('./routes/user');
-app.use('/api', patchRoutes);
-app.use('/api', userRoutes);
-// ...existing code...
+
 
 async function getDb() {
   if (!dbPool) {
-    if (MOCK_DB) {
-      const state = loadMock();
-      return {
-        execute: async (sql, params = []) => {
-          // ...existing code...
-        }
-      };
-    }
     dbPool = await require('mysql2/promise').createPool({
       host: process.env.DB_HOST || '127.0.0.1',
       user: process.env.DB_USER || 'root',
       password: process.env.DB_PASS || '',
       database: process.env.DB_NAME || 'vcv',
-      // ...existing code for real DB...
     });
     global.dbPool = dbPool;
   }
   return dbPool;
 }
 
-// Move upload handler code outside getDb function
-app.post('/upload', upload.single('vcv'), limiter, requireAuth, async (req, res) => {
+
+app.post('/upload', upload.single('vcv'), limiter, async (req, res) => {
     console.log('DEBUG Multer:', { file: req.file, files: req.files, body: req.body, headers: req.headers });
   try {
     const file = req.file;
@@ -83,10 +64,17 @@ app.post('/upload', upload.single('vcv'), limiter, requireAuth, async (req, res)
     }
     let parsed;
     try {
-      parsed = tryParseVCV(buffer);
+      // Rozpakuj plik .vcv (zlib) z limitem rozmiaru
+      const MAX_UNZIPPED_SIZE = 20 * 1024 * 1024; // 20 MB
+      const decompressed = zlib.inflateSync(buffer);
+      if (decompressed.length > MAX_UNZIPPED_SIZE) {
+        throw new Error('Unzipped file too large');
+      }
+      const jsonText = decompressed.toString('utf-8');
+      parsed = JSON.parse(jsonText);
     } catch (e) {
-      console.error('Failed to parse VCV file:', e);
-      return res.status(400).json({ error: 'Failed to parse VCV file', details: String(e) });
+      console.error('Failed to decompress or parse VCV file:', e);
+      return res.status(400).json({ error: 'Failed to decompress or parse VCV file', details: String(e) });
     }
     let modules;
     try {
@@ -213,33 +201,7 @@ app.get('/patches/:id', async (req, res) => {
   res.json({ patch, modules: mods, tags });
 });
 
-// Delete a patch (owner or admin)
-app.delete('/patches/:id', allowOwnerOrAdmin(async (req) => {
-  const id = req.params.id;
-  const db = await getDb();
-  if (MOCK_DB) {
-    const state = loadMock();
-    const p = state.patches.find(x => String(x.id) === String(id));
-    return p ? p.user_name : null;
-  }
-  const [[row]] = await db.execute('SELECT user_name FROM patches WHERE id = ? LIMIT 1', [id]);
-  return row ? row.user_name : null;
-}), async (req, res) => {
-  const id = req.params.id;
-  const db = await getDb();
-  if (MOCK_DB) {
-    const state = loadMock();
-    state.patches = state.patches.filter(x => String(x.id) !== String(id));
-    state.patch_modules = state.patch_modules.filter(pm => String(pm.patch_id) !== String(id));
-    state.patch_tags = state.patch_tags.filter(pt => String(pt.patch_id) !== String(id));
-    saveMock(state);
-    return res.json({ ok: true });
-  }
-  await db.execute('DELETE FROM patch_tags WHERE patch_id = ?', [id]);
-  await db.execute('DELETE FROM patch_modules WHERE patch_id = ?', [id]);
-  await db.execute('DELETE FROM patches WHERE id = ?', [id]);
-  res.json({ ok: true });
-});
+
 
 // Add tags to a patch
 app.post('/patches/:id/tags', async (req, res) => {
