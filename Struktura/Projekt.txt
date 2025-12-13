@@ -1,0 +1,169 @@
+1. Interfejs użytkownika (Frontend)
+
+Cel: Pozwolić użytkownikom na wgrywanie patchy, przeglądanie ich opisów, wyszukiwanie i filtrowanie.
+
+Komponenty:
+
+Formularz wgrywania patcha
+
+Pola: plik .vcv, kategoria (wybrana przez użytkownika), opcjonalny opis.
+
+Wysyła plik metodą POST do endpointu serwera /upload.
+
+Strona przeglądania / wyszukiwania patchy
+
+Filtry: użytkownik, kategoria, użyte moduły, data wgrania.
+
+Wyświetlanie wyników: tabela lub kafelki z informacjami o patchu, listą modułów i opisem.
+
+Moduły w liście wyświetlane jako linki do strony modułów w VCV Rack.
+
+Opcja pobrania oryginalnego pliku .vcv.
+
+Technologie Frontendu:
+
+HTML / CSS / JavaScript
+
+Opcjonalnie: React lub Vue dla bardziej dynamicznego UI
+
+Biblioteki:
+
+pako – do dekompresji .vcv po stronie klienta (opcjonalnie)
+
+DataTables – do sortowalnych i wyszukiwalnych tabel
+
+d3.js lub vis-network – opcjonalnie, do wizualizacji połączeń modułów
+
+2. Backend (Serwer)
+
+Cel: Obsługa uploadów, dekompresja .vcv, generowanie opisów, API dla frontendu.
+
+Workflow:
+
+Endpoint wgrywania pliku (/upload)
+
+Odbiera plik .vcv.
+
+Zapisuje go na serwerze, np.: /uploads/patches/<id>.vcv.
+
+Przetwarzanie pliku VCV
+
+Dekomresja .vcv (raw zlib) do JSON.
+
+Wyciągnięcie informacji:
+
+Lista modułów (plugin + model)
+
+Połączenia/kable (opcjonalnie)
+
+Inne informacje do automatycznego opisu
+
+Baza danych (MySQL)
+
+Zapisanie metadanych patcha: użytkownik, kategoria, ścieżka pliku, opis, data wgrania
+
+Zapisanie modułów do tabeli modules (jeśli nowy moduł)
+
+Zapisanie powiązań patch_modules (patch ↔ moduły)
+
+Generowanie linków do modułów
+
+Każdy moduł w liście otrzymuje link do strony VCV Rack:
+
+https://vcvrack.com/plugins.html?plugin=<NazwaPluginu>
+
+
+W API wysyłane są razem z nazwą modułu do frontendu.
+
+API dla frontendu
+
+GET /patches → lista patchy z metadanymi (możliwość filtrowania)
+
+GET /patches/<id> → szczegółowy opis patcha + lista modułów z linkami
+
+GET /download/<id> → pobranie oryginalnego pliku .vcv
+
+3. Baza danych (MySQL)
+
+Tabele i relacje:
+
+users → użytkownicy
+
+categories → kategorie patchy
+
+patches → metadane patcha (użytkownik, kategoria, ścieżka pliku, opis, data)
+
+modules → unikalne moduły/pluginy
+
+patch_modules → tabela łącząca wiele patchy z wieloma modułami
+
+Funkcjonalności bazy:
+
+Wyszukiwanie po użytkowniku, kategorii, module, dacie wgrania
+
+Pobieranie listy modułów dla danego patcha
+
+Liczenie modułów i połączeń do automatycznego opisu
+
+4. Przechowywanie plików
+
+.vcv przechowywane w folderze na serwerze, np.:
+
+/uploads/patches/<id>.vcv
+
+
+Baza danych przechowuje tylko ścieżkę i metadane, nie sam plik.
+
+5. Struktura stosu technologicznego
+Warstwa	Technologia / biblioteka
+Frontend	HTML / CSS / JS (+ opcjonalnie React/Vue)
+Backend	Node.js + Express (lub Python Flask/Django)
+Dekompresja	Node.js zlib (lub Python zlib)
+Upload plików	multer (Node.js)
+Baza danych	MySQL
+Biblioteki opcjonalne	pako, DataTables, d3.js / vis-network
+6. Przepływ danych
+[Przeglądarka użytkownika]
+     |
+     | Upload .vcv / wyszukiwanie
+     v
+[Frontend HTML/JS]
+     |
+     | POST / GET API
+     v
+[Backend Server (Node.js / Python)]
+     |-- Zapis pliku .vcv
+     |-- Dekomresja i parsowanie
+     |-- Generowanie listy modułów + linków
+     |-- Zapis metadanych i modułów do MySQL
+     |
+     v
+[MySQL Database]
+     |-- users, categories, patches, modules, patch_modules
+     |
+     v
+[Frontend]
+     |-- Wyświetlanie listy patchy
+     |-- Lista modułów jako linki do strony VCV Rack
+     |-- Wyszukiwanie po użytkowniku, kategorii, module, dacie
+
+7. Funkcje opcjonalne
+
+Automatyczne generowanie opisu: liczba modułów, typy, połączenia.
+
+Wizualizacja patcha (graf modułów i kabli).
+
+Tagowanie patchy i wyszukiwanie po tagach.
+
+Logowanie i rejestracja użytkowników.
+
+💡 Podsumowanie:
+Twoja strona będzie umożliwiać:
+
+Wgrywanie .vcv patchy i przechowywanie ich na serwerze.
+
+Automatyczne generowanie listy modułów i opisu patcha.
+
+Wyświetlanie modułów jako klikalnych linków do VCV Rack.
+
+Wyszukiwanie i filtrowanie patchy po użytkowniku, kategorii, modułach i dacie.

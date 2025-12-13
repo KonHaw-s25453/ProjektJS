@@ -1,3 +1,4 @@
+console.log("SETUP TEST DB FILE VERSION: 2025-12-14");
 const mysql = require('mysql2/promise');
 const fs = require('fs');
 const path = require('path');
@@ -16,5 +17,13 @@ async function setupTestDb() {
   await adminConn.query(schema);
   await adminConn.end();
 }
+
+
+// Przykładowy test, aby plik nie był pusty
+describe('setupTestDb', () => {
+  it('should be a function', () => {
+    expect(typeof setupTestDb).toBe('function');
+  });
+});
 
 module.exports = setupTestDb;

@@ -16,10 +16,8 @@ $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 if (-not $Append) { if (Test-Path $OutFile) { Remove-Item $OutFile -Force -ErrorAction SilentlyContinue } }
 
 # Try to write header to the primary OutFile. If it's locked, fall back to a timestamped filename.
-$written = $false
 try {
   "Test run at $timestamp`n" | Out-File -FilePath $OutFile -Encoding utf8 -Append -ErrorAction Stop
-  $written = $true
 } catch {
   $alt = "{0}-{1}.txt" -f ([System.IO.Path]::GetFileNameWithoutExtension($OutFile)), (Get-Date -Format "yyyyMMdd-HHmmss")
   $altPath = [System.IO.Path]::Combine((Split-Path $OutFile -Parent), $alt)
@@ -27,7 +25,6 @@ try {
   try {
     "Test run at $timestamp`n" | Out-File -FilePath $altPath -Encoding utf8 -Append -ErrorAction Stop
     $OutFile = $altPath
-    $written = $true
   } catch {
     Write-Host "Failed to write both primary and fallback output files. Continuing without text log." -ForegroundColor Red
   }
@@ -66,6 +63,7 @@ $envSetter = ""
 if ($hasJestJunit) { $envSetter = "set JEST_JUNIT_OUTPUT=`"$fullJUnit`" && " }
 
 $jsonArg = "--runInBand --json --outputFile=`"$fullJson`""
+$jsonArg = "--runInBand --json --outputFile=`"$fullJson`" --detectOpenHandles"
 $cmd = "$envSetter$jestBin $jsonArg$reporterArg"
 
 # Use cmd.exe to perform shell redirection (redirect stdout and stderr to same file)

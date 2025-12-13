@@ -17,6 +17,7 @@
     "test:integration:ci": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\run_tests.ps1 -OutFile .\\test-results-real.txt -JsonFile .\\test-results-real.json -JUnitFile .\\test-results-real.xml"
   },
   "dependencies": {
+    "@mongodb-js/zstd": "^7.0.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.0.0",
@@ -35,7 +36,10 @@
   "jest": {
     "testEnvironment": "node",
     "testTimeout": 10000,
-    "forceExit": true
+    "forceExit": true,
+    "roots": [
+      "<rootDir>/__tests__"
+    ]
   },
   "keywords": [],
   "author": "",

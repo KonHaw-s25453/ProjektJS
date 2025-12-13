@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="15" failures="5" errors="0" time="3.497">
+  <testsuite name="Auth" errors="0" failures="0" skipped="0" timestamp="2025-12-13T21:16:17" time="1.078" tests="1">
+    <testcase classname="Auth login returns token" name="Auth login returns token" time="0.121">
+    </testcase>
+  </testsuite>
+  <testsuite name="Patches" errors="0" failures="1" skipped="0" timestamp="2025-12-13T21:16:19" time="0.277" tests="3">
+    <testcase classname="Patches GET /patches returns patches array" name="Patches GET /patches returns patches array" time="0.036">
+    </testcase>
+    <testcase classname="Patches POST /upload without file returns 401 or 400" name="Patches POST /upload without file returns 401 or 400" time="0.014">
+    </testcase>
+    <testcase classname="Integration with fixture test.vcv (if present) POST /upload z test.vcv dodaje patch i zwraca id" name="Integration with fixture test.vcv (if present) POST /upload z test.vcv dodaje patch i zwraca id" time="0.036">
+      <failure>Error: read ECONNRESET
+    at TCP.onStreamRead (node:internal/stream_base_commons:216:20)</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="Rate limiting" errors="0" failures="0" skipped="0" timestamp="2025-12-13T21:16:19" time="0.273" tests="1">
+    <testcase classname="Rate limiting blocks after too many requests" name="Rate limiting blocks after too many requests" time="0.125">
+    </testcase>
+  </testsuite>
+  <testsuite name="Admin endpoints" errors="0" failures="2" skipped="0" timestamp="2025-12-13T21:16:19" time="0.289" tests="4">
+    <testcase classname="Admin endpoints GET /admin/users returns user list for admin" name="Admin endpoints GET /admin/users returns user list for admin" time="0.023">
+      <failure>Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 404
+Received array: [200, 403, 401]
+    at Object.toContain (C:\Users\konhaw\Desktop\Uczelnia\JS\ProjektJS\__tests__\admin.test.js:9:29)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)</failure>
+    </testcase>
+    <testcase classname="Admin endpoints GET /admin/logs returns logs for owner" name="Admin endpoints GET /admin/logs returns logs for owner" time="0.027">
+      <failure>Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 404
+Received array: [200, 403, 401]
+    at Object.toContain (C:\Users\konhaw\Desktop\Uczelnia\JS\ProjektJS\__tests__\admin.test.js:19:29)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)</failure>
+    </testcase>
+    <testcase classname="User details GET /users/:id returns user data" name="User details GET /users/:id returns user data" time="0.015">
+    </testcase>
+    <testcase classname="Patch details GET /patches/:id returns patch data" name="Patch details GET /patches/:id returns patch data" time="0.015">
+    </testcase>
+  </testsuite>
+  <testsuite name="POST /patch/1/tags" errors="0" failures="1" skipped="0" timestamp="2025-12-13T21:16:19" time="0.218" tests="1">
+    <testcase classname="POST /patch/1/tags should respond with 404 or 200/201 (minimal test)" name="POST /patch/1/tags should respond with 404 or 200/201 (minimal test)" time="0.038">
+      <failure>Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 401
+Received array: [200, 201, 404]
+    at Object.toContain (C:\Users\konhaw\Desktop\Uczelnia\JS\ProjektJS\__tests__\tags.test.js:10:29)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="Core" errors="0" failures="1" skipped="0" timestamp="2025-12-13T21:16:20" time="0.182" tests="1">
+    <testcase classname="Core upload .vcv file" name="Core upload .vcv file" time="0.017">
+      <failure>Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 401
+Received array: [200, 201, 400]
+    at Object.toContain (C:\Users\konhaw\Desktop\Uczelnia\JS\ProjektJS\__tests__\core.test.js:11:29)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="POST /upload" errors="0" failures="0" skipped="0" timestamp="2025-12-13T21:16:20" time="0.201" tests="1">
+    <testcase classname="POST /upload should respond with 400 if no file uploaded (minimal test)" name="POST /upload should respond with 400 if no file uploaded (minimal test)" time="0.021">
+    </testcase>
+  </testsuite>
+  <testsuite name="Endpoints Extra" errors="0" failures="0" skipped="0" timestamp="2025-12-13T21:16:20" time="0.17" tests="1">
+    <testcase classname="Endpoints Extra GET /download/:id returns 404 for missing patch" name="Endpoints Extra GET /download/:id returns 404 for missing patch" time="0.015">
+    </testcase>
+  </testsuite>
+  <testsuite name="Utils" errors="0" failures="0" skipped="0" timestamp="2025-12-13T21:16:20" time="0.166" tests="1">
+    <testcase classname="Utils GET / responds" name="Utils GET / responds" time="0.015">
+    </testcase>
+  </testsuite>
+  <testsuite name="setupTestDb" errors="0" failures="0" skipped="0" timestamp="2025-12-13T21:16:20" time="0.066" tests="1">
+    <testcase classname="setupTestDb should be a function" name="setupTestDb should be a function" time="0.001">
+    </testcase>
+  </testsuite>
+</testsuites>
