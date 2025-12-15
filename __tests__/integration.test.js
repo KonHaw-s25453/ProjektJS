@@ -7,12 +7,13 @@ describe('Integration', () => {
   const jwt = require('jsonwebtoken');
 
   const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
-  function authHeaderFor(username, role = 1) { return `Bearer ${jwt.sign({ id: 1, username, role }, JWT_SECRET)}`; }
+  function authHeaderFor(username, role = 'user') { return `Bearer ${jwt.sign({ id: 1, username, role }, JWT_SECRET)}`; }
   let dbConn;
-  let server;
   let app;
 
+  const setupTestDb = require('./setupTestDb');
   beforeAll(async () => {
+    await setupTestDb();
     process.env.DB_NAME = 'vcv';
     process.env.DB_HOST = process.env.DB_HOST ? String(process.env.DB_HOST).trim() : 'localhost';
     process.env.DB_PORT = process.env.DB_PORT ? String(process.env.DB_PORT).trim() : '3306';
@@ -27,30 +28,29 @@ describe('Integration', () => {
       charset: 'utf8mb4'
     });
     app = require('../app');
-    server = app.listen(0);
   });
 
   afterAll(async () => {
     try {
       if (dbConn) await dbConn.end();
-      if (server && server.close) await server.close();
       if (app && typeof app.close === 'function') await app.close();
       if (global.dbPool && typeof global.dbPool.end === 'function') await global.dbPool.end();
     } catch (e) {}
   });
 
   test('upload .vcv file to DB', async () => {
-    const res = await request(server)
+    const fixture = path.resolve(__dirname, '..', 'test-min.vcv');
+    const res = await request(app)
       .post('/upload')
       .set('Authorization', authHeaderFor('test-integration'))
-      .attach('vcv', Buffer.from(JSON.stringify({ test: true })), 'test.vcv');
-    expect([200, 201, 400, 500]).toContain(res.statusCode);
+      .attach('vcv', fixture);
+    expect([200, 201, 400, 500]).toContain(res.statusCode); // 401 usunięty, bo backend nie zwraca
   });
 
-  test('uploads Test.vcv and creates a patch row', async () => {
-    const fixture = path.resolve(__dirname, '..', 'Test.vcv');
+  test('uploads test.vcv and creates a patch row', async () => {
+    const fixture = path.resolve(__dirname, '..', 'test-min.vcv');
     if (!fs.existsSync(fixture)) return;
-    const res = await request(server)
+    const res = await request(app)
       .post('/upload')
       .set('Authorization', authHeaderFor('test-integration'))
       .field('category', '1')

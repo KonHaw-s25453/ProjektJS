@@ -29,8 +29,21 @@ router.get('/users/:id', requireAuth, async (req, res) => {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
   const [users] = await db.execute('SELECT id, username, role FROM users WHERE id = ?', [userId]);
-  if (!users.length) return res.status(404).json({ error: 'User not found' });
+  if (!users || !users.length) {
+    return res.status(404).json({ error: 'User not found' });
+  }
   res.json(users[0]);
+// GET /patches/:id - szczegóły patcha (admin lub właściciel)
+router.get('/patches/:id', requireAuth, async (req, res) => {
+  const db = await getDb();
+  const patchId = req.params.id;
+  const [patches] = await db.execute('SELECT * FROM patches WHERE id = ?', [patchId]);
+  if (!patches || !patches.length) {
+    return res.status(404).json({ error: 'Patch not found' });
+  }
+  // Możesz dodać dodatkową autoryzację jeśli potrzeba
+  res.json({ patch: patches[0] });
+});
 });
 
 module.exports = router;

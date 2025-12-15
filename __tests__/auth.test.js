@@ -1,8 +1,13 @@
 console.log("AUTH TEST FILE VERSION: 2025-12-14");
 const request = require('supertest');
+
 const app = require('../app');
+const setupTestDb = require('./setupTestDb');
 
 describe('Auth', () => {
+  beforeAll(async () => {
+    await setupTestDb();
+  });
   test('login returns token', async () => {
     const res = await request(app)
       .post('/auth/login')

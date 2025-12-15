@@ -1,8 +1,13 @@
 console.log("API TEST FILE VERSION: 2025-12-14");
 const request = require('supertest');
+
 const app = require('../app');
+const setupTestDb = require('./setupTestDb');
 
 describe('API', () => {
+  beforeAll(async () => {
+    await setupTestDb();
+  });
   afterAll(async () => {
     if (global.__TEST_SERVER__ && global.__TEST_SERVER__.close) {
       try {
@@ -26,8 +31,7 @@ describe('API', () => {
 
   test('GET /api/patch/:id returns 404 for missing patch', async () => {
     const res = await request(app).get('/api/patch/999999');
-    // 404 nie jest zwracany przez backend, więc nie oczekujemy go
-    expect([400, 200, 403, 401]).toContain(res.status);
+    expect(res.status).toBe(404);
   });
 });
 

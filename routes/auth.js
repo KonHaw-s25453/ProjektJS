@@ -1,6 +1,7 @@
 // Endpointy rejestracji i logowania użytkowników
 const express = require('express');
 const router = express.Router();
+
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { getDb } = require('../models/user');

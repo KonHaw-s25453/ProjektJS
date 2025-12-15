@@ -1,0 +1,32 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run Jest integration tests (upload)",
+			"type": "shell",
+			"command": "npx jest __tests__/integration.test.js --runInBand --detectOpenHandles --forceExit",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Run Jest integration tests (upload, after rename)",
+			"type": "shell",
+			"command": "npx jest __tests__/integration.test.js --runInBand --detectOpenHandles --forceExit",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Run Jest integration tests (upload, log errors)",
+			"type": "shell",
+			"command": "npx jest __tests__/integration.test.js --runInBand --detectOpenHandles --forceExit",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		}
+	]
+}
