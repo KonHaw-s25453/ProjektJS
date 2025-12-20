@@ -1,41 +1,17 @@
-console.log("INTEGRATION TEST FILE VERSION: 2025-12-14");
+
 describe('Integration', () => {
   const request = require('supertest');
+  const app = require('../app');
   const path = require('path');
   const fs = require('fs');
   const mysql = require('mysql2/promise');
   const jwt = require('jsonwebtoken');
 
-  const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+  const JWT_SECRET = process.env.JWT_SECRET || 'secret';
   function authHeaderFor(username, role = 'user') { return `Bearer ${jwt.sign({ id: 1, username, role }, JWT_SECRET)}`; }
-  let dbConn;
-  let app;
-
   const setupTestDb = require('./setupTestDb');
   beforeAll(async () => {
     await setupTestDb();
-    process.env.DB_NAME = 'vcv';
-    process.env.DB_HOST = process.env.DB_HOST ? String(process.env.DB_HOST).trim() : 'localhost';
-    process.env.DB_PORT = process.env.DB_PORT ? String(process.env.DB_PORT).trim() : '3306';
-    process.env.DB_USER = process.env.DB_USER ? String(process.env.DB_USER).trim() : 'root';
-    process.env.DB_PASS = process.env.DB_PASS ? String(process.env.DB_PASS).trim() : '';
-    dbConn = await mysql.createConnection({
-      host: process.env.DB_HOST,
-      port: process.env.DB_PORT,
-      user: process.env.DB_USER,
-      password: process.env.DB_PASS,
-      database: 'vcv',
-      charset: 'utf8mb4'
-    });
-    app = require('../app');
-  });
-
-  afterAll(async () => {
-    try {
-      if (dbConn) await dbConn.end();
-      if (app && typeof app.close === 'function') await app.close();
-      if (global.dbPool && typeof global.dbPool.end === 'function') await global.dbPool.end();
-    } catch (e) {}
   });
 
   test('upload .vcv file to DB', async () => {

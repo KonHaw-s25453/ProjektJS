@@ -12,7 +12,7 @@ describe('Auth', () => {
     const res = await request(app)
       .post('/auth/login')
       .send({ username: 'testuser', password: 'testpass' });
-    expect([200, 401]).toContain(res.statusCode); // 401 jeśli nie istnieje
+    expect([200, 401]).toContain(res.statusCode); // 404 usunięty, bo backend nie zwraca
     if (res.statusCode === 200) {
       expect(res.body).toHaveProperty('token');
     }

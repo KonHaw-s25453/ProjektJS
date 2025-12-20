@@ -27,6 +27,15 @@
 			"isBackground": false,
 			"problemMatcher": [],
 			"group": "test"
+		},
+		{
+			"type": "npm",
+			"script": "test:out",
+			"problemMatcher": [
+				"$jshint"
+			],
+			"label": "npm: test:out",
+			"detail": "powershell -Command \"npx jest --runInBand --detectOpenHandles > test-results.txt 2>&1\""
 		}
 	]
 }

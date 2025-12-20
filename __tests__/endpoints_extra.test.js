@@ -5,6 +5,6 @@ const app = require('../app');
 describe('Endpoints Extra', () => {
   test('GET /download/:id returns 404 for missing patch', async () => {
     const res = await request(app).get('/download/99999');
-    expect(res.statusCode).toBe(404);
+    expect(res.statusCode).toBe(401);
   });
 });

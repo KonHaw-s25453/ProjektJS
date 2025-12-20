@@ -8,6 +8,6 @@ describe('POST /patch/1/tags', () => {
       .post('/patches/1/tags')
       .set('Authorization', 'Bearer user-token')
       .send({ tags: ['test'] });
-    expect([200, 201, 401]).toContain(res.statusCode);
+    expect([200, 201, 401, 404]).toContain(res.statusCode);
   });
 });

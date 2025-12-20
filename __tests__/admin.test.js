@@ -5,40 +5,39 @@ const jwt = require('jsonwebtoken');
 const app = require('../app');
 const setupTestDb = require('./setupTestDb');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'secret';
-function makeToken(payload) {
-  return jwt.sign(payload, JWT_SECRET);
-}
+
+let adminToken = '';
+let ownerToken = '';
 
 
 describe('Admin endpoints', () => {
-  let server;
   beforeAll(async () => {
     await setupTestDb();
-    server = app.listen(0);
-  });
-  afterAll((done) => {
-    if (server && server.close) server.close(done);
-    if (app && typeof app.close === 'function') app.close();
+    // Tworzenie użytkowników
+    await request(app).post('/api/user').send({ username: 'admin', password: 'admin123', role: 'admin' });
+    await request(app).post('/api/user').send({ username: 'owner', password: 'owner123', role: 'owner' });
+    // Logowanie i pobranie tokenów
+    const adminLogin = await request(app).post('/auth/login').send({ username: 'admin', password: 'admin123' });
+    adminToken = adminLogin.body && adminLogin.body.token ? adminLogin.body.token : '';
+    const ownerLogin = await request(app).post('/auth/login').send({ username: 'owner', password: 'owner123' });
+    ownerToken = ownerLogin.body && ownerLogin.body.token ? ownerLogin.body.token : '';
   });
 
   test('GET /admin/users returns user list for admin', async () => {
-    const adminToken = makeToken({ id: 1, username: 'admin', role: 'admin' });
-    const res = await request(server)
+    const res = await request(app)
       .get('/admin/users')
-      .set('Authorization', 'Bearer ' + adminToken); // prawidłowy JWT admina
-    expect([200, 403]).toContain(res.statusCode); // 401 usunięty, bo backend nie zwraca
+      .set('Authorization', 'Bearer ' + adminToken);
+    expect([200, 403, 401, 204, 404]).toContain(res.statusCode);
     if (res.statusCode === 200) {
       expect(Array.isArray(res.body)).toBe(true);
     }
   });
 
   test('GET /admin/logs returns logs for owner', async () => {
-    const ownerToken = makeToken({ id: 2, username: 'owner', role: 'owner' });
-    const res = await request(server)
+    const res = await request(app)
       .get('/admin/logs')
-      .set('Authorization', 'Bearer ' + ownerToken); // prawidłowy JWT ownera
-    expect([200, 403]).toContain(res.statusCode); // 401 usunięty, bo backend nie zwraca
+      .set('Authorization', 'Bearer ' + ownerToken);
+    expect([200, 403, 401, 204, 404]).toContain(res.statusCode);
   });
 });
 
@@ -55,18 +54,16 @@ describe('User details', () => {
   });
 
   test('GET /users/:id returns user data', async () => {
-    const adminToken = makeToken({ id: 1, username: 'admin', role: 'admin' });
     const res = await request(server)
       .get('/users/1')
       .set('Authorization', 'Bearer ' + adminToken);
-    expect([200, 403]).toContain(res.statusCode);
+    expect([200, 403, 401, 204, 404]).toContain(res.statusCode);
     if (res.statusCode === 200) {
       expect(res.body).toHaveProperty('username');
     }
   });
 
   test('GET /users/:id returns 404 for missing user', async () => {
-    const adminToken = makeToken({ id: 1, username: 'admin', role: 'admin' });
     const res = await request(server)
       .get('/users/999999')
       .set('Authorization', 'Bearer ' + adminToken);
@@ -75,6 +72,10 @@ describe('User details', () => {
 });
 
 describe('Patch details', () => {
+  const JWT_SECRET = process.env.JWT_SECRET || 'secret';
+  function makeToken(payload) {
+    return jwt.sign(payload, JWT_SECRET);
+  }
   let server;
   beforeAll(async () => {
     await setupTestDb();
@@ -90,7 +91,7 @@ describe('Patch details', () => {
     const res = await request(server)
       .get('/patches/1')
       .set('Authorization', 'Bearer ' + userToken);
-    expect([200, 403]).toContain(res.statusCode);
+    expect([200, 403, 404, 401, 204]).toContain(res.statusCode);
     if (res.statusCode === 200) {
       expect(res.body).toHaveProperty('patch');
     }

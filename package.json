@@ -39,7 +39,8 @@
     "forceExit": true,
     "roots": [
       "<rootDir>/__tests__"
-    ]
+    ],
+    "setupFilesAfterEnv": ["<rootDir>/setupTests.js"]
   },
   "keywords": [],
   "author": "",

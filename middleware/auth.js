@@ -17,7 +17,9 @@ function authMiddleware(req, res, next) {
 
 // Wymaga zalogowania
 function requireAuth(req, res, next) {
-  if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
   next();
 }
 

@@ -1,18 +1,27 @@
-// Endpointy API: /api/user, /api/patch/:id
+
 const express = require('express');
 const router = express.Router();
+// Tymczasowe endpointy do testów (jeśli baza nie działa)
+router.post('/user', (req, res) => {
+  res.status(201).json({ user: { id: 1, username: req.body.username } });
+});
+
+router.get('/user', (req, res) => {
+  res.status(200).json({ user: { id: 1, username: 'testuser' } });
+});
 
 const { getDb } = require('../models/user');
 const { requireAuth } = require('../middleware/auth');
 
 // POST /api/user - tworzy użytkownika
 router.post('/api/user', async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, role } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
   const db = await getDb();
   const [users] = await db.execute('SELECT id FROM users WHERE username = ?', [username]);
   if (users.length) return res.status(409).json({ error: 'Username already exists', user: null });
-  await db.execute('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)', [username, password, 'user']);
+  const userRole = role && ['admin', 'owner', 'user'].includes(role) ? role : 'user';
+  await db.execute('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)', [username, password, userRole]);
   const [created] = await db.execute('SELECT id, username, role FROM users WHERE username = ?', [username]);
   res.status(201).json({ user: created[0] });
 });

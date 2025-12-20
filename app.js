@@ -27,6 +27,23 @@ let dbPool = null;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
 const app = express();
+
+// Upewnij się, że katalog 'uploads/' istnieje
+const uploadsDir = path.join(__dirname, 'uploads');
+const tmpUploadsDir = path.join(__dirname, 'tmp_uploads');
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir);
+    console.log('Stworzono katalog uploads/');
+  }
+  if (!fs.existsSync(tmpUploadsDir)) {
+    fs.mkdirSync(tmpUploadsDir);
+    console.log('Stworzono katalog tmp_uploads/');
+  }
+} catch (err) {
+  console.error('Błąd przy tworzeniu katalogu uploads/ lub tmp_uploads/:', err);
+  throw err;
+}
 // Globalny logger żądań HTTP
 app.use((req, res, next) => {
   console.log('REQUEST:', req.method, req.url);
@@ -36,14 +53,28 @@ const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minut
   max: 100, // limit 100 żądań na IP
 });
-// app.use(authMiddleware); // JWT -> req.user (wyłączone na czas debugowania uploadu)
-// app.use(express.json()); // wyłączone na czas debugowania uploadu
+
+// app.use(authMiddleware); // JWT -> req.user (włączony ponownie)
+app.use(authMiddleware);
+// app.use(express.json()); // NIE globalnie! Konflikt z uploadem
 
 
 
 // Przywrócony tylko parser JSON dla /api
+
+app.use((req, res, next) => { console.log('MIDDLEWARE: przed /auth json', req.method, req.url); next(); });
+app.use('/auth', express.json());
+app.use((req, res, next) => { console.log('MIDDLEWARE: po /auth json', req.method, req.url); next(); });
+app.use((req, res, next) => { console.log('MIDDLEWARE: przed /api json', req.method, req.url); next(); });
 app.use('/api', express.json());
+app.use((req, res, next) => { console.log('MIDDLEWARE: po /api json', req.method, req.url); next(); });
+
+// Mount routers for all main endpoints
+app.use(authRouter); // /register, /auth/login
+app.use('/api', apiRouter); // /api/user, /api/patch/:id
+app.use('/admin', adminRouter); // /admin/users, /admin/logs, /admin/patches/:id, /admin/users/:id
 app.use(patchesRouter); // /upload, /patches, ...
+
 
 
 
@@ -52,9 +83,17 @@ app.get('/', (req, res) => {
   res.status(200).json({ ok: true });
 });
 
-// Obsługa 404 dla pozostałych nieistniejących endpointów
+
+
 app.use((req, res, next) => {
+  console.log('MIDDLEWARE: 404 handler', req.method, req.url);
   res.status(404).json({ error: 'Not found' });
+});
+
+// Globalny handler błędów Express
+app.use((err, req, res, next) => {
+  console.error('GLOBAL ERROR HANDLER:', err);
+  res.status(500).json({ error: 'Internal server error', details: String(err) });
 });
 
 

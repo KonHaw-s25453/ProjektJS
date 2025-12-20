@@ -5,14 +5,14 @@ const { getDb } = require('../models/user');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 // GET /admin/users - lista użytkowników (tylko admin)
-router.get('/admin/users', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/users', requireAuth, requireRole('admin'), async (req, res) => {
   const db = await getDb();
   const [users] = await db.execute('SELECT id, username, role FROM users');
   res.json(users);
 });
 
 // GET /admin/logs - przykładowe logi (tylko owner)
-router.get('/admin/logs', requireAuth, requireRole('owner'), async (req, res) => {
+router.get('/logs', requireAuth, requireRole('owner'), async (req, res) => {
   // Zwraca przykładową listę logów
   res.json([
     { id: 1, message: 'Log 1', date: new Date().toISOString() },
