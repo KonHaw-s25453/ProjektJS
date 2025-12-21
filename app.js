@@ -85,10 +85,14 @@ app.get('/', (req, res) => {
 
 
 
-app.use((req, res, next) => {
-  console.log('MIDDLEWARE: 404 handler', req.method, req.url);
-  res.status(404).json({ error: 'Not found' });
-});
+// 404 handler: when integrating Next.js as a single server we skip this
+// so Next can handle page routes. Set env `NEXT_INTEGRATION=1` to skip.
+if (!process.env.NEXT_INTEGRATION) {
+  app.use((req, res, next) => {
+    console.log('MIDDLEWARE: 404 handler', req.method, req.url);
+    res.status(404).json({ error: 'Not found' });
+  });
+}
 
 // Globalny handler błędów Express
 app.use((err, req, res, next) => {

@@ -1,0 +1,20 @@
+:root{
+  --bg: #f8fafc;
+  --text: #0f172a;
+  --accent: #647687;
+}
+html,body{margin:0;padding:0;font-family:Inter,Segoe UI,Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+.container{max-width:960px;margin:0 auto;padding:1rem}
+.site-header{background:var(--accent);color:#fff;padding:0.5rem 0}
+.header-inner{display:flex;align-items:center;justify-content:space-between}
+.logo{margin:0;font-size:1.1rem}
+.btn{background:white;color:var(--accent);padding:0.4rem 0.8rem;border-radius:4px;text-decoration:none;margin-left:8px}
+.btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.2);color:#fff}
+.hero{padding:2rem 0;background:linear-gradient(180deg,rgba(100,118,135,0.08),transparent)}
+.searchbar{display:flex;gap:0.5rem;align-items:center}
+.searchbar input{flex:1;padding:0.6rem;border-radius:6px;border:1px solid #ddd}
+.patch-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-top:1rem}
+.patch-card{background:white;padding:1rem;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.06)}
+.meta{font-size:0.85rem;color:#666;margin-top:0.5rem}
+.error{color:#b91c1c}
+.visually-hidden{position:absolute!important;height:1px;width:1px;overflow:hidden;clip:rect(1px,1px,1px,1px);white-space:nowrap}

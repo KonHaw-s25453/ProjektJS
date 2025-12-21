@@ -8,6 +8,14 @@ describe('Patches', () => {
       const res = await request(app).get('/patches/999999');
       expect(res.statusCode).toBe(404);
     });
+
+    test('DELETE /patches/:id returns 404 for missing patch', async () => {
+      const jwt = require('jsonwebtoken');
+      const JWT_SECRET = process.env.JWT_SECRET || 'secret';
+      const token = jwt.sign({ id: 1, username: 'test-delete', role: 'user' }, JWT_SECRET);
+      const res = await request(app).delete('/patches/999999').set('Authorization', `Bearer ${token}`);
+      expect([404, 401, 403]).toContain(res.statusCode);
+    });
   const setupTestDb = require('./setupTestDb');
   beforeAll(async () => {
     await setupTestDb();

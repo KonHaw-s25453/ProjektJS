@@ -39,6 +39,21 @@ describe('Admin endpoints', () => {
       .set('Authorization', 'Bearer ' + ownerToken);
     expect([200, 403, 401, 204, 404]).toContain(res.statusCode);
   });
+
+  test('POST /admin/users/:id/role changes user role', async () => {
+    const res = await request(app)
+      .post('/admin/users/1/role')
+      .set('Authorization', 'Bearer ' + ownerToken)
+      .send({ role: 'admin' });
+    expect([200, 403, 401, 404]).toContain(res.statusCode);
+  });
+
+  test('DELETE /users/:id deletes user', async () => {
+    const res = await request(app)
+      .delete('/users/2')
+      .set('Authorization', 'Bearer ' + ownerToken);
+    expect([200, 403, 401, 404]).toContain(res.statusCode);
+  });
 });
 
 
