@@ -2,6 +2,12 @@
 const express = require('express');
 const router = express.Router();
 
+// // Log na wejściu do routera
+// router.use((req, res, next) => {
+//   console.log('AUTH ROUTER:', req.method, req.url);
+//   next();
+// });
+
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { getDb } = require('../models/user');
@@ -9,17 +15,26 @@ const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
 // POST /register { username, password }
 router.post('/register', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
-  const db = await getDb();
-  const [users] = await db.execute('SELECT id FROM users WHERE username = ?', [username]);
-  if (users.length) return res.status(409).json({ error: 'Username already exists' });
-  const hash = await bcrypt.hash(password, 8);
-  await db.execute('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)', [username, hash, 'user']);
-  res.json({ ok: true });
-});
-
-// POST /auth/login { username, password }
+  try {
+    console.log('REGISTER REQUEST:', req.body);
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+    console.log('Getting DB connection...');
+    const db = await getDb();
+    console.log('Checking existing user...');
+    const [users] = await db.execute('SELECT id FROM users WHERE username = ?', [username]);
+    if (users.length) return res.status(409).json({ error: 'Username already exists' });
+    console.log('Hashing password...');
+    const hash = await bcrypt.hash(password, 10);
+    console.log('Inserting user...');
+    await db.execute('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)', [username, hash, 1]);
+    console.log('User registered successfully');
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('REGISTER ERROR:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});// POST /auth/login { username, password }
 router.post('/auth/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });

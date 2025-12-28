@@ -1,8 +1,20 @@
-export default function Register(){
+import Head from 'next/head'
+import Header from '../components/Header'
+import RegisterForm from '../components/RegisterForm'
+
+export default function Register() {
   return (
-    <div className="container">
-      <h2>Rejestracja (prototype)</h2>
-      <p>Formularz rejestracji zostanie zaimplementowany później. To tylko placeholder.</p>
-    </div>
+    <>
+      <Head>
+        <title>Rejestracja - VCV Rack Patches</title>
+        <meta name="description" content="Zarejestruj się w archiwum patchy VCV Rack" />
+      </Head>
+
+      <Header />
+
+      <main>
+        <RegisterForm />
+      </main>
+    </>
   )
 }

@@ -1,5 +1,7 @@
 # VCV Patch Archive — scaffold
 
+[![VCV Rack](https://vcvrack.com/static/logo.png)](https://vcvrack.com/)
+
 This repository contains a minimal scaffold for a VCV Rack patch upload and indexing service.
 
 Quick start (PowerShell):

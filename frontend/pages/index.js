@@ -10,6 +10,22 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
+  const onSearch = async (query) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/patches?query=${encodeURIComponent(query)}`)
+      if (!res.ok) throw new Error('Search error')
+      const data = await res.json()
+      setPatches(data.patches || data || [])
+    } catch (e) {
+      setError(e.message)
+      // Keep current patches or fallback
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     async function load() {
       setLoading(true)
@@ -42,7 +58,7 @@ export default function Home() {
       <Header />
       <main className="container">
         <Hero />
-        <SearchBar />
+        <SearchBar onSearch={onSearch} />
         <section aria-live="polite">
           {loading && <p>Ładowanie...</p>}
           {error && <p className="error">Błąd: {error} — pokazuję przykładowe dane.</p>}

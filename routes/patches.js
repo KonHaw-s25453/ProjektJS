@@ -212,6 +212,58 @@ router.get('/patches/:id', async (req, res) => {
   res.json({ patch: rows[0] });
 });
 
+// Endpoint do analizy patcha na płatne moduły
+router.post('/analyze-patch', upload.single('vcv'), async (req, res) => {
+  try {
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    if (!file.originalname.toLowerCase().endsWith('.vcv')) {
+      return res.status(400).json({ error: 'Invalid file extension. Only .vcv files are allowed.' });
+    }
+    let buffer;
+    try {
+      buffer = fs.readFileSync(file.path);
+    } catch (e) {
+      return res.status(500).json({ error: 'Failed to read file' });
+    }
+    let parsed = null;
+    try {
+      parsed = JSON.parse(buffer.toString('utf-8'));
+    } catch (e) {
+      try {
+        const decompressed = zlib.inflateSync(buffer);
+        parsed = JSON.parse(decompressed.toString('utf-8'));
+      } catch (e2) {
+        return res.status(400).json({ error: 'Failed to parse VCV file' });
+      }
+    }
+    const modules = extractModules(parsed);
+    const paidModules = [];
+    let totalPrice = 0;
+    for (const mod of modules) {
+      try {
+        const checkRes = await fetch(`http://localhost:3000/check-module/${mod.plugin}/${mod.model}`);
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          if (checkData.found) {
+            paidModules.push({ plugin: mod.plugin, model: mod.model, price: parseInt(checkData.price) });
+            totalPrice += parseInt(checkData.price);
+          }
+        }
+      } catch (e) {
+        console.error('Error checking module:', mod, e);
+      }
+    }
+    // Usuń plik tymczasowy
+    fs.unlinkSync(file.path);
+    res.json({ paidModules, totalPrice });
+  } catch (err) {
+    res.status(500).json({ error: 'Analysis failed', details: String(err) });
+  }
+});
+
 // Pomocnicza funkcja do wyciągania modułów z patcha
 function extractModules(parsed) {
   // uproszczona logika: szukaj modules lub plugins

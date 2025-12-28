@@ -1,61 +1,71 @@
 
 process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION:', err);
+  console.error('Stack:', err.stack);
+  process.exit(1);
 });
 process.on('unhandledRejection', (reason, promise) => {
   console.error('UNHANDLED REJECTION:', reason);
+  console.error('Promise:', promise);
+  process.exit(1);
 });
 
 const express = require('express');
-const rateLimit = require('express-rate-limit');
-const multer = require('multer');
+// const rateLimit = require('express-rate-limit');
+// const multer = require('multer');
 const path = require('path');
-const cors = require('cors');
+// const cors = require('cors');
 const fs = require('fs');
-const zlib = require('zlib');
+// const zlib = require('zlib');
 require('dotenv').config();
-// Konfiguracja Multer do uploadu plików
-const upload = multer({ dest: 'uploads/', limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
+// const cheerio = require('cheerio');
+// // Konfiguracja Multer do uploadu plików
+// const upload = multer({ dest: 'uploads/', limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
 
 const { authMiddleware } = require('./middleware/auth');
 const authRouter = require('./routes/auth');
-const patchesRouter = require('./routes/patches');
-const adminRouter = require('./routes/admin');
-const apiRouter = require('./routes/api');
+// const patchesRouter = require('./routes/patches');
+// const adminRouter = require('./routes/admin');
+// const apiRouter = require('./routes/api');
 
 let dbPool = null;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
 const app = express();
 
-// Upewnij się, że katalog 'uploads/' istnieje
-const uploadsDir = path.join(__dirname, 'uploads');
-const tmpUploadsDir = path.join(__dirname, 'tmp_uploads');
-try {
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir);
-    console.log('Stworzono katalog uploads/');
-  }
-  if (!fs.existsSync(tmpUploadsDir)) {
-    fs.mkdirSync(tmpUploadsDir);
-    console.log('Stworzono katalog tmp_uploads/');
-  }
-} catch (err) {
-  console.error('Błąd przy tworzeniu katalogu uploads/ lub tmp_uploads/:', err);
-  throw err;
-}
-// Globalny logger żądań HTTP
-app.use((req, res, next) => {
-  console.log('REQUEST:', req.method, req.url);
-  next();
-});
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minut
-  max: 100, // limit 100 żądań na IP
-});
+// // Najwcześniejszy log
+// app.use((req, res, next) => {
+//   console.log('EARLIEST MIDDLEWARE:', req.method, req.url);
+//   next();
+// });
 
-// app.use(authMiddleware); // JWT -> req.user (włączony ponownie)
-app.use(authMiddleware);
+// Upewnij się, że katalog 'uploads/' istnieje
+// const uploadsDir = path.join(__dirname, 'uploads');
+// const tmpUploadsDir = path.join(__dirname, 'tmp_uploads');
+// try {
+//   if (!fs.existsSync(uploadsDir)) {
+//     fs.mkdirSync(uploadsDir);
+//     console.log('Stworzono katalog uploads/');
+//   }
+//   if (!fs.existsSync(tmpUploadsDir)) {
+//     fs.mkdirSync(tmpUploadsDir);
+//     console.log('Stworzono katalog tmp_uploads/');
+//   }
+// } catch (err) {
+//   console.error('Błąd przy tworzeniu katalogu uploads/ lub tmp_uploads/:', err);
+//   throw err;
+// }
+// Globalny logger żądań HTTP
+// app.use((req, res, next) => {
+//   console.log('REQUEST:', req.method, req.url);
+//   next();
+// });
+// const limiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minut
+//   max: 100, // limit 100 żądań na IP
+// });
+
+// app.use(limiter);
 // app.use(express.json()); // NIE globalnie! Konflikt z uploadem
 
 
@@ -64,16 +74,19 @@ app.use(authMiddleware);
 
 app.use((req, res, next) => { console.log('MIDDLEWARE: przed /auth json', req.method, req.url); next(); });
 app.use('/auth', express.json());
-app.use((req, res, next) => { console.log('MIDDLEWARE: po /auth json', req.method, req.url); next(); });
-app.use((req, res, next) => { console.log('MIDDLEWARE: przed /api json', req.method, req.url); next(); });
-app.use('/api', express.json());
-app.use((req, res, next) => { console.log('MIDDLEWARE: po /api json', req.method, req.url); next(); });
+app.use('/register', express.json());
+app.use((req, res, next) => { console.log('MIDDLEWARE: po /auth json', req.method, req.url, 'body:', req.body); next(); });
+// app.use((req, res, next) => { console.log('MIDDLEWARE: przed /api json', req.method, req.url); next(); });
+// app.use('/api', express.json());
+// app.use((req, res, next) => { console.log('MIDDLEWARE: po /api json', req.method, req.url); next(); });
 
 // Mount routers for all main endpoints
+console.log('Mounting routers...');
 app.use(authRouter); // /register, /auth/login
-app.use('/api', apiRouter); // /api/user, /api/patch/:id
-app.use('/admin', adminRouter); // /admin/users, /admin/logs, /admin/patches/:id, /admin/users/:id
-app.use(patchesRouter); // /upload, /patches, ...
+console.log('authRouter mounted');
+// app.use('/api', apiRouter); // /api/user, /api/patch/:id
+// app.use('/admin', adminRouter); // /admin/users, /admin/logs, /admin/patches/:id, /admin/users/:id
+// app.use(patchesRouter); // /upload, /patches, ...
 
 
 
@@ -81,6 +94,36 @@ app.use(patchesRouter); // /upload, /patches, ...
 // Endpoint główny (GET /) — test oczekuje 200
 app.get('/', (req, res) => {
   res.status(200).json({ ok: true });
+});
+
+// Endpoint do sprawdzania modułu w library.vcvrack.com
+app.get('/check-module/:producer/:module', async (req, res) => {
+  console.log('CHECK MODULE:', req.params);
+  const { producer, module } = req.params;
+  const url = `https://library.vcvrack.com/${producer}/${module}`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      return res.status(404).json({ error: 'Module not found' });
+    }
+    const html = await response.text();
+    const $ = cheerio.load(html);
+    // Szukamy linku zawierającego "$" w tekście
+    const priceLink = $('a').filter((i, el) => $(el).text().includes('$'));
+    if (priceLink.length > 0) {
+      const text = priceLink.text().trim();
+      console.log('Price link text:', text);
+      const priceMatch = text.match(/\$(\d+)/);
+      if (priceMatch) {
+        const price = priceMatch[1];
+        return res.json({ found: true, producer, module, price });
+      }
+    }
+    res.json({ found: false });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Failed to fetch or parse page' });
+  }
 });
 
 

@@ -1,8 +1,20 @@
-export default function Login(){
+import Head from 'next/head'
+import Header from '../components/Header'
+import LoginForm from '../components/LoginForm'
+
+export default function Login() {
   return (
-    <div className="container">
-      <h2>Logowanie (prototype)</h2>
-      <p>Formularz logowania zostanie zaimplementowany później. To tylko placeholder.</p>
-    </div>
+    <>
+      <Head>
+        <title>Logowanie - VCV Rack Patches</title>
+        <meta name="description" content="Zaloguj się do archiwum patchy VCV Rack" />
+      </Head>
+
+      <Header />
+
+      <main>
+        <LoginForm />
+      </main>
+    </>
   )
 }

@@ -5,6 +5,8 @@
 module.exports = {
   async rewrites() {
     return [
+      { source: '/register', destination: 'http://localhost:3000/register' },
+      { source: '/auth/:path*', destination: 'http://localhost:3000/auth/:path*' },
       { source: '/patches', destination: 'http://localhost:3000/patches' },
       { source: '/patches/:path*', destination: 'http://localhost:3000/patches/:path*' },
       { source: '/api/:path*', destination: 'http://localhost:3000/api/:path*' },
