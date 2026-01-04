@@ -175,6 +175,32 @@ INSERT DELAYED IGNORE INTO `tags` (`id`, `name`) VALUES
 -- --------------------------------------------------------
 
 --
+-- Struktura tabeli dla tabeli `notes`
+--
+
+DROP TABLE IF EXISTS `notes`;
+CREATE TABLE IF NOT EXISTS `notes` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `patch_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `content` text NOT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `patch_id` (`patch_id`),
+  KEY `user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- RELACJE DLA TABELI `notes`:
+--   `patch_id`
+--       `patches` -> `id`
+--   `user_id`
+--       `users` -> `id`
+--
+
+-- --------------------------------------------------------
+
+--
 -- Struktura tabeli dla tabeli `users`
 --
 
@@ -217,6 +243,14 @@ ALTER TABLE `patch_modules`
 ALTER TABLE `patch_tags`
   ADD CONSTRAINT `patch_tags_ibfk_1` FOREIGN KEY (`patch_id`) REFERENCES `patches` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `patch_tags_ibfk_2` FOREIGN KEY (`tag_id`) REFERENCES `tags` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `notes`
+--
+ALTER TABLE `notes`
+  ADD CONSTRAINT `notes_ibfk_1` FOREIGN KEY (`patch_id`) REFERENCES `patches` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `notes_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

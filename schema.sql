@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS `patches` (
   `file_path` varchar(1024) NOT NULL,
   `description` text DEFAULT NULL,
   `uploaded_at` datetime DEFAULT current_timestamp(),
+  `total_price` decimal(10,2) DEFAULT 0.00,
   PRIMARY KEY (`id`),
   KEY `category_id` (`category_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -175,6 +176,32 @@ INSERT IGNORE INTO `tags` (`id`, `name`) VALUES
 -- --------------------------------------------------------
 
 --
+-- Struktura tabeli dla tabeli `notes`
+--
+
+DROP TABLE IF EXISTS `notes`;
+CREATE TABLE IF NOT EXISTS `notes` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `patch_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `content` text NOT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `patch_id` (`patch_id`),
+  KEY `user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- RELACJE DLA TABELI `notes`:
+--   `patch_id`
+--       `patches` -> `id`
+--   `user_id`
+--       `users` -> `id`
+--
+
+-- --------------------------------------------------------
+
+--
 -- Struktura tabeli dla tabeli `users`
 --
 
@@ -217,6 +244,37 @@ ALTER TABLE `patch_modules`
 ALTER TABLE `patch_tags`
   ADD CONSTRAINT `patch_tags_ibfk_1` FOREIGN KEY (`patch_id`) REFERENCES `patches` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `patch_tags_ibfk_2` FOREIGN KEY (`tag_id`) REFERENCES `tags` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `notes`
+--
+ALTER TABLE `notes`
+  ADD CONSTRAINT `notes_ibfk_1` FOREIGN KEY (`patch_id`) REFERENCES `patches` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `notes_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Struktura tabeli dla tabeli `module_prices`
+--
+
+DROP TABLE IF EXISTS `module_prices`;
+CREATE TABLE IF NOT EXISTS `module_prices` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `plugin` varchar(255) NOT NULL,
+  `model` varchar(255) NOT NULL,
+  `price` decimal(10,2) NOT NULL DEFAULT 0.00,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `plugin_model` (`plugin`, `model`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `module_prices`
+--
+
+INSERT IGNORE INTO `module_prices` (`plugin`, `model`, `price`) VALUES
+('Befaco', 'Rampage', 25.00),
+('Mutable Instruments', 'Braids', 30.00),
+('VCV', 'Scope', 0.00);
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

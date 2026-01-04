@@ -11,22 +11,22 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const express = require('express');
-// const rateLimit = require('express-rate-limit');
-// const multer = require('multer');
+const rateLimit = require('express-rate-limit');
+const multer = require('multer');
 const path = require('path');
-// const cors = require('cors');
+const cors = require('cors');
 const fs = require('fs');
-// const zlib = require('zlib');
+const zlib = require('zlib');
 require('dotenv').config();
-// const cheerio = require('cheerio');
-// // Konfiguracja Multer do uploadu plików
-// const upload = multer({ dest: 'uploads/', limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
+const cheerio = require('cheerio');
+// Konfiguracja Multer do uploadu plików
+const upload = multer({ dest: 'uploads/', limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
 
 const { authMiddleware } = require('./middleware/auth');
 const authRouter = require('./routes/auth');
-// const patchesRouter = require('./routes/patches');
-// const adminRouter = require('./routes/admin');
-// const apiRouter = require('./routes/api');
+const patchesRouter = require('./routes/patches');
+const adminRouter = require('./routes/admin');
+const apiRouter = require('./routes/api');
 
 let dbPool = null;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
@@ -80,20 +80,44 @@ app.use((req, res, next) => { console.log('MIDDLEWARE: po /auth json', req.metho
 // app.use('/api', express.json());
 // app.use((req, res, next) => { console.log('MIDDLEWARE: po /api json', req.method, req.url); next(); });
 
+// Global auth middleware
+app.use(authMiddleware);
+
 // Mount routers for all main endpoints
 console.log('Mounting routers...');
 app.use(authRouter); // /register, /auth/login
 console.log('authRouter mounted');
-// app.use('/api', apiRouter); // /api/user, /api/patch/:id
-// app.use('/admin', adminRouter); // /admin/users, /admin/logs, /admin/patches/:id, /admin/users/:id
-// app.use(patchesRouter); // /upload, /patches, ...
+app.use('/api', apiRouter); // /api/user, /api/patch/:id
+app.use('/admin', adminRouter); // /admin/users, /admin/logs, /admin/patches/:id, /admin/users/:id
+app.use(patchesRouter); // /upload, /patches, ...
 
 
 
 
-// Endpoint główny (GET /) — test oczekuje 200
-app.get('/', (req, res) => {
-  res.status(200).json({ ok: true });
+// Endpoint główny (GET /) — strona główna z info o API i statystykami
+app.get('/', async (req, res) => {
+  const db = await getDb();
+  let stats = { patches: 0, users: 0, modules: 0 };
+  if (db) {
+    const [patchCount] = await db.execute('SELECT COUNT(*) as count FROM patches');
+    const [userCount] = await db.execute('SELECT COUNT(*) as count FROM users');
+    const [moduleCount] = await db.execute('SELECT COUNT(*) as count FROM modules');
+    stats = {
+      patches: patchCount[0].count,
+      users: userCount[0].count,
+      modules: moduleCount[0].count
+    };
+  }
+  res.status(200).json({
+    message: 'VCV Rack Patch Sharing API',
+    version: '1.0',
+    stats,
+    endpoints: {
+      auth: ['POST /register', 'POST /auth/login'],
+      patches: ['POST /upload', 'GET /patches', 'GET /patches/:id', 'GET /download/:id', 'POST /patches/:id/notes', 'POST /patches/:id/tags', 'DELETE /patches/:id'],
+      admin: ['GET /admin/users', 'GET /admin/logs', 'GET /users/:id']
+    }
+  });
 });
 
 // Endpoint do sprawdzania modułu w library.vcvrack.com

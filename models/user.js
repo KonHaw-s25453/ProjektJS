@@ -10,6 +10,7 @@ async function getDb() {
         user: process.env.DB_USER || 'root',
         password: process.env.DB_PASS || '',
         database: process.env.DB_NAME || 'vcv',
+        port: process.env.DB_PORT || 3306,
       });
       global.dbPool = dbPool;
       console.log('Database pool created successfully');

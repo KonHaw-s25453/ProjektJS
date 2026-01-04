@@ -8,10 +8,12 @@ describe('Integration', () => {
   const jwt = require('jsonwebtoken');
 
   const JWT_SECRET = process.env.JWT_SECRET || 'secret';
-  function authHeaderFor(username, role = 'user') { return `Bearer ${jwt.sign({ id: 1, username, role }, JWT_SECRET)}`; }
+  function authHeaderFor(username, role = 'user') { return `Bearer ${jwt.sign({ id: 999, username, role }, JWT_SECRET)}`; }
   const setupTestDb = require('./setupTestDb');
+  let dbConn;
   beforeAll(async () => {
     await setupTestDb();
+    dbConn = global.__TEST_DB_CONN__;
   });
 
   test('upload .vcv file to DB', async () => {
@@ -19,7 +21,8 @@ describe('Integration', () => {
     const res = await request(app)
       .post('/upload')
       .set('Authorization', authHeaderFor('test-integration'))
-      .attach('vcv', fixture);
+      .attach('vcv', fixture)
+      .timeout(10000);
     expect([200, 201, 400, 500]).toContain(res.statusCode); // 401 usunięty, bo backend nie zwraca
   });
 
@@ -30,12 +33,13 @@ describe('Integration', () => {
       .post('/upload')
       .set('Authorization', authHeaderFor('test-integration'))
       .field('category', '1')
-      .attach('vcv', fixture, path.basename(fixture));
+      .attach('vcv', fixture, path.basename(fixture))
+      .timeout(10000);
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('ok', true);
     expect(res.body).toHaveProperty('patchId');
     const patchId = res.body.patchId;
-    const getRes = await request(app).get(`/patches/${patchId}`);
+    const getRes = await request(app).get(`/patches/${patchId}`).timeout(10000);
     expect(getRes.status).toBe(200);
     expect(getRes.body).toHaveProperty('patch');
     expect(getRes.body.patch).toHaveProperty('id', patchId);

@@ -17,7 +17,9 @@ function authMiddleware(req, res, next) {
 
 // Wymaga zalogowania
 function requireAuth(req, res, next) {
+  console.log('REQUIRE AUTH: req.user', req.user);
   if (!req.user) {
+    console.log('REQUIRE AUTH: No user, returning 401');
     return res.status(401).json({ error: 'Authentication required' });
   }
   next();

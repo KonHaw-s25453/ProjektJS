@@ -21,10 +21,10 @@ beforeAll(async () => {
     charset: 'utf8mb4'
   });
   global.__TEST_DB_CONN__ = dbConn;
-  server = app.listen(3001, () => {
-    console.log('Test server running on port 3001');
-  });
-  global.__TEST_SERVER__ = server;
+  // server = app.listen(3002, () => {
+  //   console.log('Test server running on port 3002');
+  // });
+  // global.__TEST_SERVER__ = server;
 });
 
 afterAll(async () => {

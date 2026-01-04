@@ -36,7 +36,8 @@ router.post('/upload', requireAuth, uploadSingleWithLog('vcv'), async (req, res)
       console.error('UPLOAD: Zły typ pliku:', file.originalname);
       return res.status(400).json({ error: 'Invalid file extension. Only .vcv files are allowed.' });
     }
-    const { category = null, description = null } = req.body;
+    const { category = null } = req.body;
+    let description = req.body.description || null;
     const authUser = req.user.username;
     let buffer;
     try {
@@ -87,6 +88,20 @@ router.post('/upload', requireAuth, uploadSingleWithLog('vcv'), async (req, res)
       modules = [];
       console.error('UPLOAD: Błąd extractModules:', e);
     }
+    // Automatyczne generowanie opisu jeśli nie podano
+    if (!description || description.trim() === '') {
+      const moduleCount = modules.length;
+      const moduleList = modules.map(m => `${m.plugin} ${m.model}`).join(', ');
+      description = `Patch zawiera ${moduleCount} modułów: ${moduleList}.`;
+    }
+    // Oblicz cenę sumaryczną płatnych modułów
+    let totalPrice = 0;
+    for (const mod of modules) {
+      const [prices] = await db.execute('SELECT price FROM module_prices WHERE plugin = ? AND model = ?', [mod.plugin, mod.model]);
+      if (prices.length && parseFloat(prices[0].price) > 0) {
+        totalPrice += parseFloat(prices[0].price);
+      }
+    }
     let patchId = null;
     try {
       const db = await getDb();
@@ -96,8 +111,8 @@ router.post('/upload', requireAuth, uploadSingleWithLog('vcv'), async (req, res)
           conn = await db.getConnection();
           await conn.beginTransaction();
           const [result] = await conn.execute(
-            'INSERT INTO patches (user_name, category_id, file_path, description, uploaded_at) VALUES (?, ?, ?, ?, NOW())',
-            [authUser, category, file.path, description]
+            'INSERT INTO patches (user_name, category_id, file_path, description, total_price, uploaded_at) VALUES (?, ?, ?, ?, ?, NOW())',
+            [authUser, category, file.path, description, totalPrice]
           );
           patchId = result.insertId;
           for (const m of modules) {
@@ -123,6 +138,7 @@ router.post('/upload', requireAuth, uploadSingleWithLog('vcv'), async (req, res)
       console.error('UPLOAD: błąd getDb lub transakcji:', dbErr);
       return res.status(500).json({ error: 'DB error', details: String(dbErr) });
     }
+    console.log('UPLOAD: Success, sending response', { ok: true, parsed: !!parsed, modules, patchId, path: file.path });
     res.json({ ok: true, parsed: !!parsed, modules, patchId, path: file.path });
   } catch (err) {
     console.error('UPLOAD: Błąd uploadu (uncaught):', err);
@@ -283,16 +299,43 @@ router.get('/patches', async (req, res) => {
   const { user, category, module, since } = req.query;
   const db = await getDb();
   if (!db) return res.json({ error: 'DB not configured', patches: [] });
-  let sql = `SELECT p.id, p.user_name, p.category_id, p.file_path, p.description, p.uploaded_at,
-    (SELECT COUNT(*) FROM patch_modules pm WHERE pm.patch_id = p.id) AS module_count
-    FROM patches p WHERE 1=1`;
+  let sql = `SELECT p.id, p.user_name, p.category_id, c.name as category_name, p.file_path, p.description, p.uploaded_at, p.total_price,
+    (SELECT COUNT(*) FROM patch_modules pm WHERE pm.patch_id = p.id) AS module_count,
+    GROUP_CONCAT(DISTINCT m.plugin SEPARATOR ', ') AS producers,
+    GROUP_CONCAT(DISTINCT m.model SEPARATOR ', ') AS types,
+    GROUP_CONCAT(DISTINCT t.name SEPARATOR ', ') AS tags
+    FROM patches p
+    LEFT JOIN categories c ON p.category_id = c.id
+    LEFT JOIN patch_modules pm ON p.id = pm.patch_id
+    LEFT JOIN modules m ON pm.module_id = m.id
+    LEFT JOIN patch_tags pt ON p.id = pt.patch_id
+    LEFT JOIN tags t ON pt.tag_id = t.id
+    WHERE 1=1`;
   const params = [];
   if (user) { sql += ' AND p.user_name = ?'; params.push(user); }
   if (category) { sql += ' AND p.category_id = ?'; params.push(category); }
   if (since) { sql += ' AND p.uploaded_at >= ?'; params.push(since); }
-  sql += ' ORDER BY p.uploaded_at DESC LIMIT 200';
+  sql += ' GROUP BY p.id ORDER BY p.uploaded_at DESC LIMIT 200';
   const [rows] = await db.execute(sql, params);
   res.json({ patches: rows });
+});
+
+// Pobierz szczegóły patcha
+router.get('/:id', async (req, res) => {
+  const db = await getDb();
+  const patchId = req.params.id;
+  const [patches] = await db.execute('SELECT p.*, c.name as category_name FROM patches p LEFT JOIN categories c ON p.category_id = c.id WHERE p.id = ?', [patchId]);
+  if (!patches || !patches.length) {
+    return res.status(404).json({ error: 'Patch not found' });
+  }
+  const patch = patches[0];
+  // Pobierz moduły
+  const [modules] = await db.execute('SELECT m.plugin, m.model FROM modules m JOIN patch_modules pm ON m.id = pm.module_id WHERE pm.patch_id = ?', [patchId]);
+  // Pobierz tagi
+  const [tags] = await db.execute('SELECT t.name FROM tags t JOIN patch_tags pt ON t.id = pt.tag_id WHERE pt.patch_id = ?', [patchId]);
+  // Pobierz notatki
+  const [notes] = await db.execute('SELECT n.content, n.created_at, u.username FROM notes n JOIN users u ON n.user_id = u.id WHERE n.patch_id = ? ORDER BY n.created_at DESC', [patchId]);
+  res.json({ patch, modules, tags, notes });
 });
 
 // Pobierz plik patcha (.vcv)
@@ -308,6 +351,80 @@ router.get('/download/:id', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'File not found' });
   }
   res.download(filePath, `patch-${patchId}.vcv`);
+});
+
+// POST /patches/:id/notes - dodaj notatkę do patcha (zalogowany użytkownik)
+router.post('/:id/notes', requireAuth, async (req, res) => {
+  const db = await getDb();
+  const patchId = req.params.id;
+  const { content } = req.body;
+  if (!content || typeof content !== 'string' || content.trim().length === 0) {
+    return res.status(400).json({ error: 'Content is required' });
+  }
+  // Sprawdź czy patch istnieje
+  const [patches] = await db.execute('SELECT id FROM patches WHERE id = ?', [patchId]);
+  if (!patches || !patches.length) {
+    return res.status(404).json({ error: 'Patch not found' });
+  }
+  // Dodaj notatkę
+  await db.execute('INSERT INTO notes (patch_id, user_id, content) VALUES (?, ?, ?)', [patchId, req.user.id, content.trim()]);
+  res.json({ message: 'Note added' });
+});
+
+// POST /patches/:id/tags - dodaj tag do patcha (zalogowany użytkownik)
+router.post('/:id/tags', requireAuth, async (req, res) => {
+  const db = await getDb();
+  const patchId = req.params.id;
+  const { tag } = req.body;
+  if (!tag || typeof tag !== 'string' || tag.trim().length === 0) {
+    return res.status(400).json({ error: 'Tag is required' });
+  }
+  // Sprawdź czy patch istnieje
+  const [patches] = await db.execute('SELECT id FROM patches WHERE id = ?', [patchId]);
+  if (!patches || !patches.length) {
+    return res.status(404).json({ error: 'Patch not found' });
+  }
+  // Znajdź lub utwórz tag
+  let [tags] = await db.execute('SELECT id FROM tags WHERE name = ?', [tag.trim()]);
+  let tagId;
+  if (tags && tags.length) {
+    tagId = tags[0].id;
+  } else {
+    const [result] = await db.execute('INSERT INTO tags (name) VALUES (?)', [tag.trim()]);
+    tagId = result.insertId;
+  }
+  // Dodaj powiązanie, jeśli nie istnieje
+  await db.execute('INSERT IGNORE INTO patch_tags (patch_id, tag_id) VALUES (?, ?)', [patchId, tagId]);
+  res.json({ message: 'Tag added' });
+});
+
+// DELETE /patches/:id - usuń patcha (właściciel lub admin)
+router.delete('/:id', requireAuth, async (req, res) => {
+  const db = await getDb();
+  const patchId = req.params.id;
+  // Sprawdź czy patch istnieje i czy użytkownik ma prawo
+  const [patches] = await db.execute('SELECT user_name FROM patches WHERE id = ?', [patchId]);
+  if (!patches || !patches.length) {
+    return res.status(404).json({ error: 'Patch not found' });
+  }
+  const patchOwner = patches[0].user_name;
+  if (req.user.username !== patchOwner && req.user.role !== 'admin' && req.user.role !== 'owner') {
+    return res.status(403).json({ error: 'Insufficient permissions' });
+  }
+  // Usuń plik
+  const filePath = path.join(__dirname, '..', 'uploads', `patch-${patchId}.vcv`); // zakładając nazwę pliku
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+  // Usuń z bazy (cascade usunie powiązania)
+  await db.execute('DELETE FROM patches WHERE id = ?', [patchId]);
+  // Loguj akcję
+  const fs = require('fs');
+  const logEntry = `${new Date().toISOString()} - DELETE_PATCH: Patch ${patchId} deleted by ${req.user.username}\n`;
+  fs.appendFile(path.join(__dirname, '..', 'logs.txt'), logEntry, (err) => {
+    if (err) console.error('Error logging delete patch:', err);
+  });
+  res.json({ message: 'Patch deleted' });
 });
 
 module.exports = router;

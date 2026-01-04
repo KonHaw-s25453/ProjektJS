@@ -1,5 +1,6 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import Home from '../pages/index'
+import { AuthProvider } from '../components/AuthContext'
 import React from 'react'
 
 describe('Index page', () => {
@@ -14,14 +15,22 @@ describe('Index page', () => {
   })
 
   it('fetches patches and displays them', async () => {
-    render(<Home />)
+    render(
+      <AuthProvider>
+        <Home />
+      </AuthProvider>
+    )
     await waitFor(() => expect(screen.getByText(/Patch #10/i)).toBeInTheDocument())
     expect(screen.getByText(/demo/i)).toBeInTheDocument()
   })
 
   it('handles fetch error and shows fallback data', async () => {
     global.fetch = jest.fn(() => Promise.reject(new Error('Network error')))
-    render(<Home />)
+    render(
+      <AuthProvider>
+        <Home />
+      </AuthProvider>
+    )
     await waitFor(() => expect(screen.getByText(/Błąd: Network error/i)).toBeInTheDocument())
     expect(screen.getByText(/Patch #1/i)).toBeInTheDocument() // fallback data
     expect(screen.getByText(/anon/i)).toBeInTheDocument()
@@ -33,7 +42,11 @@ describe('Index page', () => {
       { id: 1, user_name: 'user1', description: 'oscillator patch', uploaded_at: '2025-12-21' },
       { id: 2, user_name: 'user2', description: 'drum patch', uploaded_at: '2025-12-20' }
     ] }) }))
-    render(<Home />)
+    render(
+      <AuthProvider>
+        <Home />
+      </AuthProvider>
+    )
     await waitFor(() => expect(screen.getByText(/Patch #1/i)).toBeInTheDocument())
 
     const searchInput = screen.getByPlaceholderText(/Szukaj po tytule, autorze, module/i)
@@ -51,7 +64,11 @@ describe('Index page', () => {
     global.fetch = jest.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ patches: [
       { id: 1, user_name: 'user1', description: 'patch1', uploaded_at: '2025-12-21' }
     ] }) }))
-    render(<Home />)
+    render(
+      <AuthProvider>
+        <Home />
+      </AuthProvider>
+    )
     await waitFor(() => expect(screen.getByText(/Patch #1/i)).toBeInTheDocument())
 
     const searchButton = screen.getByRole('button', { name: /Szukaj/i })
