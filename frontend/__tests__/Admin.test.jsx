@@ -12,22 +12,41 @@ jest.mock('next/router', () => ({
   }),
 }))
 
+jest.mock('../components/AuthContext', () => ({
+  AuthProvider: ({ children }) => <div>{children}</div>,
+  useAuth: () => ({
+    user: { id: 1, username: 'admin', display_name: 'Admin User', role: 'admin' },
+    isAuthenticated: true,
+  }),
+}))
+
 describe('Admin page', () => {
   const originalFetch = global.fetch
   const originalLocalStorage = global.localStorage
 
   beforeEach(() => {
-    global.fetch = jest.fn()
-    global.localStorage = {
-      getItem: jest.fn(() => 'fake-token'),
-      setItem: jest.fn(),
-      removeItem: jest.fn(),
-    }
+    global.fetch = jest.fn((url) => {
+      if (url === '/admin/users') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ users: [{ id: 1, username: 'user1', display_name: 'User One', role: 'user' }] }) })
+      } else if (url === '/admin/logs') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ logs: ['Log1', 'Log2'] }) })
+      }
+      return Promise.reject(new Error('Unknown URL'))
+    })
+    Object.defineProperty(window, 'localStorage', {
+      value: {
+        getItem: jest.fn(() => 'fake-token'),
+        setItem: jest.fn(),
+        removeItem: jest.fn(),
+      },
+      writable: true,
+    })
   })
 
   afterEach(() => {
     global.fetch = originalFetch
-    global.localStorage = originalLocalStorage
+    // Restore localStorage
+    delete window.localStorage
     jest.resetAllMocks()
   })
 
@@ -42,17 +61,8 @@ describe('Admin page', () => {
   })
 
   it('displays admin panel for admin user', async () => {
-    global.fetch
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ user: { id: 1, username: 'admin', role: 'admin' } }) })
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ users: [{ id: 1, username: 'user1', display_name: 'User One', role: 'user' }] }) })
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ logs: ['Log1', 'Log2'] }) })
-
     await act(async () => {
-      render(
-        <AuthProvider>
-          <Admin />
-        </AuthProvider>
-      )
+      render(<Admin />)
     })
 
     await waitFor(() => expect(screen.getByText(/Panel Administracyjny/i)).toBeInTheDocument())

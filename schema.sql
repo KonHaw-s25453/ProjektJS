@@ -112,6 +112,7 @@ DROP TABLE IF EXISTS `patch_modules`;
 CREATE TABLE IF NOT EXISTS `patch_modules` (
   `patch_id` int(11) NOT NULL,
   `module_id` int(11) NOT NULL,
+  `count` int(11) NOT NULL DEFAULT 1,
   PRIMARY KEY (`patch_id`,`module_id`),
   KEY `module_id` (`module_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

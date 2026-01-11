@@ -4,6 +4,7 @@ import Header from '../components/Header'
 import Hero from '../components/Hero'
 import SearchBar from '../components/SearchBar'
 import PatchList from '../components/PatchList'
+import API_BASE_URL from '../lib/api'
 
 export default function Home() {
   const [patches, setPatches] = useState([])
@@ -14,7 +15,7 @@ export default function Home() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/patches?query=${encodeURIComponent(query)}`)
+      const res = await fetch(`${API_BASE_URL}/patches?query=${encodeURIComponent(query)}`)
       if (!res.ok) throw new Error('Search error')
       const data = await res.json()
       setPatches(data.patches || data || [])
@@ -31,7 +32,7 @@ export default function Home() {
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch('/patches')
+        const res = await fetch(`${API_BASE_URL}/patches`)
         if (!res.ok) throw new Error('Network error')
         const data = await res.json()
         setPatches(data.patches || data || [])

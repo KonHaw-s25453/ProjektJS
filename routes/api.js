@@ -45,7 +45,84 @@ router.get('/api/patch/:id', async (req, res) => {
   if (!patchId || !/^[0-9]+$/.test(patchId)) return res.status(404).json({ error: 'Patch not found' });
   const [rows] = await db.execute('SELECT * FROM patches WHERE id = ?', [patchId]);
   if (!rows.length) return res.status(404).json({ error: 'Patch not found' });
-  res.json({ patch: rows[0] });
+});
+
+// GET /api/module-price/:plugin/:model - zwraca cenę modułu z bazy danych
+router.get('/api/module-price/:plugin/:model', async (req, res) => {
+  const db = await getDb();
+  const { plugin, model } = req.params;
+  try {
+    const [rows] = await db.execute('SELECT price FROM module_prices WHERE plugin = ? AND model = ?', [plugin, model]);
+    if (rows.length > 0) {
+      res.json({ price: rows[0].price });
+    } else {
+      res.json({ price: null });
+    }
+  } catch (error) {
+    console.error('Error fetching module price:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/update-prices - aktualizuje ceny wszystkich modułów
+router.post('/api/update-prices', requireAuth, async (req, res) => {
+  // Only allow admin/owner to update prices
+  if (!req.user || !['admin', 'owner'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const { updateAllModulePrices } = require('../scripts/update-prices');
+
+  try {
+    // Run price update in background
+    updateAllModulePrices().then(() => {
+      console.log('Price update completed');
+    }).catch(error => {
+      console.error('Price update failed:', error);
+    });
+
+    res.json({ message: 'Price update started' });
+  } catch (error) {
+    console.error('Error starting price update:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/check-updates - sprawdza czy biblioteka VCV została zaktualizowana
+router.get('/api/check-updates', async (req, res) => {
+  const { checkLibraryUpdates } = require('../scripts/check-updates');
+
+  try {
+    const status = await checkLibraryUpdates();
+    res.json(status);
+  } catch (error) {
+    console.error('Error checking updates:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/check-and-update - sprawdza aktualizacje i aktualizuje ceny jeśli potrzebne
+router.post('/api/check-and-update', requireAuth, async (req, res) => {
+  // Only allow admin/owner to trigger updates
+  if (!req.user || !['admin', 'owner'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const { checkAndUpdateIfNeeded } = require('../scripts/check-updates');
+
+  try {
+    // Run check and update in background
+    checkAndUpdateIfNeeded().then(result => {
+      console.log('Check and update completed:', result);
+    }).catch(error => {
+      console.error('Check and update failed:', error);
+    });
+
+    res.json({ message: 'Update check started' });
+  } catch (error) {
+    console.error('Error starting update check:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 module.exports = router;

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Header from '../../components/Header'
 import { useAuth } from '../../components/AuthContext'
+import API_BASE_URL from '../../lib/api'
 
 export default function PatchDetail() {
   const router = useRouter()
@@ -12,16 +13,18 @@ export default function PatchDetail() {
   const [newNote, setNewNote] = useState('')
   const [tags, setTags] = useState([])
   const [newTag, setNewTag] = useState('')
+  const [modules, setModules] = useState([])
 
   useEffect(() => {
     if (!id) return
 
-    fetch(`/patches/${id}`)
+    fetch(`${API_BASE_URL}/patches/${id}`)
       .then(res => res.json())
       .then(data => {
         if (data.patch) setPatch(data.patch)
         if (data.notes) setNotes(data.notes)
         if (data.tags) setTags(data.tags)
+        if (data.modules) setModules(data.modules)
       })
       .catch(err => console.error(err))
   }, [id])
@@ -30,7 +33,7 @@ export default function PatchDetail() {
     const token = localStorage.getItem('token')
     if (!token) return alert('Zaloguj się')
 
-    const res = await fetch(`/patches/${id}/notes`, {
+    const res = await fetch(`${API_BASE_URL}/patches/${id}/notes`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -48,7 +51,7 @@ export default function PatchDetail() {
     const token = localStorage.getItem('token')
     if (!token) return alert('Zaloguj się')
 
-    const res = await fetch(`/patches/${id}/tags`, {
+    const res = await fetch(`${API_BASE_URL}/patches/${id}/tags`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -68,7 +71,7 @@ export default function PatchDetail() {
 
     if (!confirm('Czy na pewno chcesz usunąć ten patch?')) return
 
-    const res = await fetch(`/patches/${id}`, {
+    const res = await fetch(`${API_BASE_URL}/patches/${id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` }
     })
@@ -84,7 +87,7 @@ export default function PatchDetail() {
     const token = localStorage.getItem('token')
     if (!token) return alert('Zaloguj się')
 
-    const res = await fetch(`/patches/${id}/download`, {
+    const res = await fetch(`${API_BASE_URL}/patches/${id}/download`, {
       headers: { Authorization: `Bearer ${token}` }
     })
     if (res.ok) {
@@ -111,16 +114,59 @@ export default function PatchDetail() {
         <h1>Patch #{patch.id} - {patch.description || 'Bez opisu'}</h1>
         <p>Użytkownik: {patch.user_name}</p>
         <p>Kategoria: {patch.category_name || 'Brak'}</p>
-        <p>Liczba modułów: {patch.module_count}</p>
-        <p>Producenci: {patch.producers || 'Brak'}</p>
-        <p>Typy: {patch.types || 'Brak'}</p>
-        <p>Tagi: {patch.tags || 'Brak'}</p>
+        <p>Liczba modułów: {modules.length}</p>
         {patch.total_price > 0 && <p>Cena sumaryczna: ${patch.total_price}</p>}
         <p>Wgrano: {patch.uploaded_at}</p>
 
         <button onClick={downloadPatch} className="btn">Pobierz plik .vcv</button>
         {(user && (user.username === patch.user_name || user.role === 'admin' || user.role === 'owner')) && (
           <button onClick={deletePatch} className="btn btn-danger">Usuń patch</button>
+        )}
+
+        <h2>Moduły</h2>
+        {modules.length > 0 ? (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f0f0f0' }}>
+                <th style={{ border: '1px solid #ddd', padding: '8px' }}>Producent</th>
+                <th style={{ border: '1px solid #ddd', padding: '8px' }}>Typ</th>
+                <th style={{ border: '1px solid #ddd', padding: '8px' }}>Liczba</th>
+                <th style={{ border: '1px solid #ddd', padding: '8px' }}>Cena</th>
+              </tr>
+            </thead>
+            <tbody>
+              {modules.map((mod, index) => (
+                <tr key={index}>
+                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>
+                    <a 
+                      href={`https://library.vcvrack.com/${encodeURIComponent(mod.plugin)}/${encodeURIComponent(mod.model)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: '#007bff', textDecoration: 'none' }}
+                    >
+                      {mod.plugin}
+                    </a>
+                  </td>
+                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>
+                    <a 
+                      href={`https://library.vcvrack.com/${encodeURIComponent(mod.plugin)}/${encodeURIComponent(mod.model)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: '#007bff', textDecoration: 'none' }}
+                    >
+                      {mod.model}
+                    </a>
+                  </td>
+                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>{mod.count}</td>
+                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>
+                    {mod.price && parseFloat(mod.price) > 0 ? `$${mod.price}` : '-'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p>Brak modułów</p>
         )}
 
         <h2>Notatki</h2>

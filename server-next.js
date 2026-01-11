@@ -4,13 +4,14 @@
 
 const next = require('next');
 const http = require('http');
+const path = require('path');
 // Indicate to `app.js` that Next integration is active so it can skip its
 // built-in 404 handler. This must be set BEFORE requiring `./app`.
 process.env.NEXT_INTEGRATION = '1';
-const appExpress = require('./app'); // existing Express app
+const appExpress = require('./app.cjs'); // existing Express app
 
 const dev = process.env.NODE_ENV !== 'production';
-const nextApp = next({ dev });
+const nextApp = next({ dev, dir: 'frontend' });
 const handle = nextApp.getRequestHandler();
 
 (async () => {

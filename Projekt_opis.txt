@@ -1,0 +1,45 @@
+Projekt – Serwis do współdzielenia, przeszukiwania i oceniania plików VCV Rack
+1. Cel i uzasadnienie
+Celem projektu jest stworzenie platformy webowej dla użytkowników VCV Rack, umożliwiającej publikowanie, przeglądanie i ocenianie patchy (plików .vcv) używanych w emulatorze syntezatora modułowego typu Eurorack.
+Motywacja i użyteczność:
+Rozbudowane patche mogą znacznie obciążać CPU, dlatego podgląd zawartości pliku przed jego pobraniem pozwala użytkownikowi ocenić, czy jego sprzęt poradzi sobie z danym projektem.
+Niektóre moduły są płatne lub komercyjne. Podgląd zawartości umożliwia użytkownikom sprawdzenie, czy patch wymaga dodatkowych zakupów.
+Same tytuły plików nie zawierają wystarczających informacji o zawartości. Możliwość dodania opisów, tagów i metadanych pozwala na precyzyjne wyszukiwanie i klasyfikację plików.
+Platforma wprowadza również elementy społecznościowe: komentarze, oceny i rankingi popularności. Dzięki temu serwis nie tylko udostępnia pliki, ale wspiera wymianę wiedzy i doświadczeń w społeczności modularnej muzyki cyfrowej.
+2. Zakres funkcjonalny
+Projekt obejmuje następujące funkcjonalności:
+1. System użytkowników i ról
+rejestracja i logowanie użytkowników,
+role: zwykły użytkownik / administrator,
+zarządzanie kontami i uprawnieniami.
+2. Obsługa plików VCV Rack
+upload plików z walidacją formatu i rozmiaru,
+rozpakowywanie pliku .vcv na serwerze,
+wydobycie z archiwum pliku JSON zawierającego strukturę patcha,
+pobieranie z JSON-a informacji: lista modułów, liczba modułów, typ modułu (darmowy/komercyjny), ustawienia i inne metadane,
+przechowywanie tych danych w bazie MySQL w celu szybkiego filtrowania i podglądu.
+3. Przeglądanie i filtrowanie patchy
+podgląd zawartości patcha bez pobierania,
+filtrowanie według modułów, autorów, daty publikacji, liczby modułów i tagów,
+
+4. CRUD i moderacja
+pełny CRUD dla patchy, użytkowników, komentarzy i tagów,
+panel administracyjny do moderacji treści i zarządzania użytkownikami.
+3. Wartość dydaktyczna
+Projekt umożliwia praktyczne wykorzystanie wielu aspektów nowoczesnych aplikacji webowych:
+obsługę plików i ich przetwarzanie po stronie serwera,
+projektowanie i zarządzanie wielotabelową relacyjną bazą danych (MySQL),
+implementację autoryzacji i systemu ról użytkowników,
+integrację backendu z frontendem w React.js,
+implementację funkcjonalności społecznościowych (komentarze, oceny, tagi),
+filtrowanie, wyszukiwanie i paginację wyników w dużych zbiorach danych.
+Dodatkowo projekt daje możliwość przyszłej rozbudowy, np. wizualizacji układu patcha lub systemu rekomendacji patchy na podstawie podobieństwa modułów.
+4. Technologie i stack
+Backend:
+Node.js 
+MySQL
+Frontend:
+React.js
+Opis:
+Backend odpowiada za logowanie, autoryzację, CRUD, upload i przetwarzanie plików, w tym wydobycie JSON-a z plików VCV (rozpakowanie biblioteką node-zstandard).
+Frontend w React.js umożliwia użytkownikom wygodne przeglądanie, filtrowanie, ocenianie i komentowanie patchy. Komunikacja między frontendem a backendem odbywa się poprzez REST API zwracające dane w formacie JSON.

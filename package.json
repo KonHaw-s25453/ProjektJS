@@ -2,6 +2,7 @@
   "name": "vcv-patch-archive",
   "version": "0.1.0",
   "description": "Minimal scaffold for VCV Rack patch upload/indexing service",
+  "type": "commonjs",
   "main": "server.js",
   "scripts": {
     "start": "node server-next.js",
@@ -19,6 +20,7 @@
   },
   "dependencies": {
     "@mongodb-js/zstd": "^7.0.0",
+    "axios": "^1.13.2",
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.1.2",
     "cors": "^2.8.5",
@@ -27,7 +29,8 @@
     "express-rate-limit": "^8.2.1",
     "jsonwebtoken": "^9.0.3",
     "multer": "^1.4.5-lts.1",
-    "mysql2": "^3.15.3"
+    "mysql2": "^3.15.3",
+    "tar-stream": "^3.1.7"
   },
   "devDependencies": {
     "jest": "^30.2.0",
@@ -51,6 +54,5 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
-  "type": "commonjs"
+  "license": "ISC"
 }

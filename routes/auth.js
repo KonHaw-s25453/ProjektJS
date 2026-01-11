@@ -48,4 +48,19 @@ router.post('/auth/login', async (req, res) => {
   res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
 });
 
+const { requireAuth } = require('../middleware/auth');
+
+// GET /api/user - get current user info
+router.get('/api/user', requireAuth, async (req, res) => {
+  try {
+    const db = await getDb();
+    const [users] = await db.execute('SELECT id, username, email, display_name, role FROM users WHERE id = ?', [req.user.id]);
+    if (!users.length) return res.status(404).json({ error: 'User not found' });
+    res.json({ user: users[0] });
+  } catch (error) {
+    console.error('GET USER ERROR:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

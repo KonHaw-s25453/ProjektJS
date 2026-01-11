@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Header from '../components/Header'
+import API_BASE_URL from '../lib/api'
 
 export default function Account() {
   const [user, setUser] = useState(null)
@@ -15,7 +16,7 @@ export default function Account() {
     }
 
     // Pobierz dane użytkownika
-    fetch('/api/user', {
+    fetch(`${API_BASE_URL}/api/user`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
@@ -26,7 +27,7 @@ export default function Account() {
       .catch(() => router.push('/login'))
 
     // Pobierz patchy użytkownika
-    fetch('/patches?user=true', {
+    fetch(`${API_BASE_URL}/patches?user=true`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())

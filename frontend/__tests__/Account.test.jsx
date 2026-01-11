@@ -6,9 +6,17 @@ import React from 'react'
 jest.mock('next/router', () => ({
   useRouter: () => ({
     push: jest.fn(),
-    pathname: '/',
+    pathname: '/account',
     query: {},
-    asPath: '/',
+    asPath: '/account',
+  }),
+}))
+
+jest.mock('../components/AuthContext', () => ({
+  AuthProvider: ({ children }) => <div>{children}</div>,
+  useAuth: () => ({
+    user: { id: 1, username: 'testuser', display_name: 'Test User', role: 'user' },
+    isAuthenticated: true,
   }),
 }))
 
@@ -17,17 +25,28 @@ describe('Account page', () => {
   const originalLocalStorage = global.localStorage
 
   beforeEach(() => {
-    global.fetch = jest.fn()
-    global.localStorage = {
-      getItem: jest.fn(() => 'fake-token'),
-      setItem: jest.fn(),
-      removeItem: jest.fn(),
-    }
+    global.fetch = jest.fn((url) => {
+      if (url === '/api/user') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ user: { id: 1, username: 'testuser', display_name: 'Test User', role: 'user' } }) })
+      } else if (url.includes('/patches?user=true')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ patches: [{ id: 1, description: 'Test patch' }] }) })
+      }
+      return Promise.reject(new Error('Unknown URL'))
+    })
+    Object.defineProperty(window, 'localStorage', {
+      value: {
+        getItem: jest.fn((key) => key === 'token' ? 'fake-token' : null),
+        setItem: jest.fn(),
+        removeItem: jest.fn(),
+      },
+      writable: true,
+    })
   })
 
   afterEach(() => {
     global.fetch = originalFetch
-    global.localStorage = originalLocalStorage
+    // Restore localStorage
+    delete window.localStorage
     jest.resetAllMocks()
   })
 
@@ -42,16 +61,12 @@ describe('Account page', () => {
   })
 
   it('fetches and displays user data and patches', async () => {
-    global.fetch
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ user: { id: 1, username: 'testuser', display_name: 'Test User', role: 'user' } }) })
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ patches: [{ id: 1, description: 'Test patch' }] }) })
-
     await act(async () => {
-      render(
-        <AuthProvider>
-          <Account />
-        </AuthProvider>
-      )
+      render(<Account />)
+    })
+
+    expect(global.fetch).toHaveBeenCalledWith('/api/user', {
+      headers: { Authorization: 'Bearer fake-token' }
     })
 
     await waitFor(() => expect(screen.getByText(/Witaj, Test User!/i)).toBeInTheDocument(), { timeout: 10000 })

@@ -3,13 +3,14 @@ const multer = require('multer');
 const fs = require('fs');
 const zlib = require('zlib');
 const { decompress } = require('@mongodb-js/zstd');
+const tar = require('tar-stream');
 const path = require('path');
 const { requireAuth } = require('../middleware/auth');
 const { getDb } = require('../models/user');
 
 // Deklaracje upload i tmpUploadsDir na górze pliku
 const tmpUploadsDir = path.join(__dirname, '..', 'tmp_uploads');
-const upload = multer({ dest: tmpUploadsDir, limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({ dest: tmpUploadsDir, limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB limit
 
 const router = express.Router();
 // Inicjalizacja routera musi być przed użyciem
@@ -21,8 +22,18 @@ router.use((req, res, next) => {
 });
 
 // GŁÓWNY ENDPOINT UPLOAD PATCHA (.vcv) – przywrócenie poprzedniej logiki
-router.post('/upload', requireAuth, uploadSingleWithLog('vcv'), async (req, res) => {
+router.post('/api/upload', requireAuth, uploadSingleWithLog('vcv'), async (req, res) => {
+  console.log('UPLOAD: function start');
+  let db;
   try {
+    db = await getDb();
+    console.log('UPLOAD: db obtained:', !!db);
+  } catch (dbErr) {
+    console.error('UPLOAD: Błąd getDb:', dbErr);
+    return res.status(500).json({ error: 'Database connection failed', details: String(dbErr) });
+  }
+  try {
+    console.log('UPLOAD: db in try:', !!db);
     if (!req.user) {
       console.error('UPLOAD: Brak użytkownika JWT');
       return res.status(401).json({ error: 'Unauthorized' });
@@ -37,6 +48,14 @@ router.post('/upload', requireAuth, uploadSingleWithLog('vcv'), async (req, res)
       return res.status(400).json({ error: 'Invalid file extension. Only .vcv files are allowed.' });
     }
     const { category = null } = req.body;
+    let categoryId = null;
+    if (category && !isNaN(category)) {
+      // Sprawdź czy category jest prawidłowym id (liczbą)
+      const catId = parseInt(category, 10);
+      const [catRows] = await db.execute('SELECT id FROM categories WHERE id = ?', [catId]);
+      if (catRows.length) categoryId = catId;
+    }
+    console.log('UPLOAD: category input:', category, 'categoryId:', categoryId);
     let description = req.body.description || null;
     const authUser = req.user.username;
     let buffer;
@@ -46,56 +65,54 @@ router.post('/upload', requireAuth, uploadSingleWithLog('vcv'), async (req, res)
       console.error('UPLOAD: Błąd odczytu pliku:', e);
       return res.status(500).json({ error: 'Failed to read uploaded file', details: String(e) });
     }
+    // Próba parsowania pliku VCV - może być JSON, gzip+JSON, zstd+tar+JSON, lub binarny
     let parsed = null;
-    let parseError = null;
+    let modules = [];
     try {
-      parsed = JSON.parse(buffer.toString('utf-8'));
-    } catch (e) {
-      parseError = e;
-      console.error('UPLOAD: Błąd parsowania JSON:', e);
-    }
-    if (!parsed) {
-      try {
-        const MAX_UNZIPPED_SIZE = 20 * 1024 * 1024; // 20 MB
-        let decompressed;
-        try {
-          decompressed = zlib.inflateSync(buffer);
-        } catch (zerr) {
-          console.error('UPLOAD: Błąd dekompresji zlib:', zerr);
-          try {
-            decompressed = await decompress(buffer);
-          } catch (zstderr) {
-            console.error('UPLOAD: Błąd dekompresji zstd:', zstderr);
-            return res.status(400).json({ error: 'Failed to decompress VCV file with zlib or zstd', details: String(zstderr) });
-          }
-        }
-        if (decompressed.length > MAX_UNZIPPED_SIZE) throw new Error('Unzipped file too large');
-        try {
-          parsed = JSON.parse(decompressed.toString('utf-8'));
-        } catch (jerr) {
-          console.error('UPLOAD: Błąd parsowania JSON po dekompresji:', jerr);
-          return res.status(400).json({ error: 'Failed to parse decompressed VCV file as JSON', details: String(jerr) });
-        }
-      } catch (e) {
-        console.error('UPLOAD: Błąd parsowania VCV:', parseError || e);
-        return res.status(400).json({ error: 'Failed to parse VCV file as JSON, zlib, or zstd-compressed JSON', details: String(parseError || e) });
+      // Najpierw sprawdź czy to gzip (magic bytes 0x1f 0x8b)
+      if (buffer.length > 2 && buffer[0] === 0x1f && buffer[1] === 0x8b) {
+        console.log('UPLOAD: Wykryto gzip, rozpakowuję...');
+        const decompressed = zlib.gunzipSync(buffer);
+        parsed = JSON.parse(decompressed.toString('utf-8'));
+        console.log('UPLOAD: Rozpakowano gzip i sparsowano JSON');
+      } else {
+        // Spróbuj jako zwykły JSON
+        parsed = JSON.parse(buffer.toString('utf-8'));
+        console.log('UPLOAD: Sparsowano jako JSON');
       }
-    }
-    let modules;
-    try {
       modules = extractModules(parsed);
     } catch (e) {
-      modules = [];
-      console.error('UPLOAD: Błąd extractModules:', e);
+      console.log('UPLOAD: Nie udało się sparsować jako JSON lub gzip+JSON, próbuję zstd+tar...');
+      try {
+        // Spróbuj zstd dekompresję
+        const zstdDecompressed = await decompress(buffer);
+        console.log('UPLOAD: Rozpakowano zstd, sprawdzam czy to tar...');
+        
+        // Spróbuj wyciągnąć JSON z tar
+        parsed = await extractJsonFromTar(zstdDecompressed);
+        if (parsed) {
+          console.log('UPLOAD: Wyciągnięto JSON z tar');
+          modules = extractModules(parsed);
+        } else {
+          throw new Error('No JSON found in tar');
+        }
+      } catch (e2) {
+        console.log('UPLOAD: Nie udało się sparsować jako zstd+tar+JSON, traktuję jako binarny:', e.message);
+        parsed = null;
+        modules = [];
+      }
     }
     // Automatyczne generowanie opisu jeśli nie podano
+    console.log('UPLOAD: before description, db:', !!db);
     if (!description || description.trim() === '') {
-      const moduleCount = modules.length;
-      const moduleList = modules.map(m => `${m.plugin} ${m.model}`).join(', ');
-      description = `Patch zawiera ${moduleCount} modułów: ${moduleList}.`;
+      const totalModules = modules.reduce((sum, m) => sum + m.count, 0);
+      const moduleList = modules.map(m => `${m.plugin} ${m.model} (${m.count})`).join(', ');
+      description = `Patch zawiera ${totalModules} modułów: ${moduleList}.`;
     }
     // Oblicz cenę sumaryczną płatnych modułów
     let totalPrice = 0;
+    console.log('UPLOAD: calculating price, db:', !!db, typeof db);
+    console.log('db methods:', Object.getOwnPropertyNames(db.__proto__));
     for (const mod of modules) {
       const [prices] = await db.execute('SELECT price FROM module_prices WHERE plugin = ? AND model = ?', [mod.plugin, mod.model]);
       if (prices.length && parseFloat(prices[0].price) > 0) {
@@ -110,20 +127,29 @@ router.post('/upload', requireAuth, uploadSingleWithLog('vcv'), async (req, res)
         try {
           conn = await db.getConnection();
           await conn.beginTransaction();
+          console.log('UPLOAD: inserting with categoryId:', categoryId);
           const [result] = await conn.execute(
             'INSERT INTO patches (user_name, category_id, file_path, description, total_price, uploaded_at) VALUES (?, ?, ?, ?, ?, NOW())',
-            [authUser, category, file.path, description, totalPrice]
+            [authUser, categoryId, file.path, description, totalPrice]
           );
           patchId = result.insertId;
           for (const m of modules) {
-            const [rows] = await conn.execute('SELECT id FROM modules WHERE plugin = ? AND model = ? LIMIT 1', [m.plugin, m.model]);
+            const [rows] = await conn.execute('SELECT id FROM modules WHERE plugin = ? AND model = ?', [m.plugin, m.model]);
             let moduleId;
             if (rows.length) moduleId = rows[0].id;
             else {
               const [r2] = await conn.execute('INSERT INTO modules (plugin, model) VALUES (?, ?)', [m.plugin, m.model]);
               moduleId = r2.insertId;
             }
-            await conn.execute('INSERT INTO patch_modules (patch_id, module_id) VALUES (?, ?)', [patchId, moduleId]);
+            // Sprawdź czy już istnieje w patch_modules
+            const [existing] = await conn.execute('SELECT count FROM patch_modules WHERE patch_id = ? AND module_id = ?', [patchId, moduleId]);
+            if (existing.length) {
+              // UPDATE
+              await conn.execute('UPDATE patch_modules SET count = count + ? WHERE patch_id = ? AND module_id = ?', [m.count, patchId, moduleId]);
+            } else {
+              // INSERT
+              await conn.execute('INSERT INTO patch_modules (patch_id, module_id, count) VALUES (?, ?, ?)', [patchId, moduleId, m.count]);
+            }
           }
           await conn.commit();
         } catch (err) {
@@ -172,7 +198,19 @@ router.post('/upload/test', upload.single('file'), (req, res) => {
 	}
 });
 
-// Wrapper middleware logujący wejście i błędy Multer
+// Endpoint to get categories
+router.get('/api/categories', async (req, res) => {
+  try {
+    const db = await getDb();
+    const [rows] = await db.execute('SELECT id, name FROM categories ORDER BY name');
+    res.json({ categories: rows });
+  } catch (err) {
+    console.error('Error fetching categories:', err);
+    res.status(500).json({ error: 'Failed to fetch categories' });
+  }
+});
+
+module.exports = router;
 function uploadSingleWithLog(field) {
   return function (req, res, next) {
     console.log('UPLOAD WRAPPER: ====> wejście do uploadSingleWithLog', {
@@ -223,9 +261,79 @@ router.get('/patches/:id', async (req, res) => {
   const patchId = req.params.id;
   const db = await getDb();
   if (!db) return res.status(500).json({ error: 'DB not configured' });
-  const [rows] = await db.execute('SELECT * FROM patches WHERE id = ?', [patchId]);
-  if (!rows.length) return res.status(404).json({ error: 'Patch not found' });
-  res.json({ patch: rows[0] });
+  
+  // Pobierz patch
+  const [patchRows] = await db.execute('SELECT * FROM patches WHERE id = ?', [patchId]);
+  if (!patchRows.length) return res.status(404).json({ error: 'Patch not found' });
+  const patch = patchRows[0];
+  
+  // Pobierz moduły
+  const [moduleRows] = await db.execute(`
+    SELECT m.plugin, m.model, pm.count, COALESCE(mp.price, 0) as price
+    FROM patch_modules pm
+    JOIN modules m ON pm.module_id = m.id
+    LEFT JOIN module_prices mp ON mp.plugin = m.plugin AND mp.model = m.model
+    WHERE pm.patch_id = ?
+  `, [patchId]);
+  
+  // Pobierz notatki
+  const [noteRows] = await db.execute(`
+    SELECT n.content as note, n.created_at, u.username
+    FROM notes n
+    JOIN users u ON n.user_id = u.id
+    WHERE n.patch_id = ?
+    ORDER BY n.created_at DESC
+  `, [patchId]);
+  
+  // Pobierz tagi
+  const [tagRows] = await db.execute(`
+    SELECT t.name as tag
+    FROM patch_tags pt
+    JOIN tags t ON pt.tag_id = t.id
+    WHERE pt.patch_id = ?
+    ORDER BY t.name
+  `, [patchId]);
+  
+  // Pobierz kategorię
+  let categoryName = null;
+  if (patch.category_id) {
+    const [catRows] = await db.execute('SELECT name FROM categories WHERE id = ?', [patch.category_id]);
+    if (catRows.length) categoryName = catRows[0].name;
+  }
+  
+  res.json({ 
+    patch: {
+      ...patch,
+      category_name: categoryName
+    },
+    modules: moduleRows,
+    notes: noteRows,
+    tags: tagRows
+  });
+});
+
+// GET /patches/:id/download - pobierz plik .vcv
+router.get('/patches/:id/download', requireAuth, async (req, res) => {
+  const patchId = req.params.id;
+  const db = await getDb();
+  if (!db) return res.status(500).json({ error: 'DB not configured' });
+  
+  // Sprawdź czy patch istnieje
+  const [patchRows] = await db.execute('SELECT file_path FROM patches WHERE id = ?', [patchId]);
+  if (!patchRows.length) return res.status(404).json({ error: 'Patch not found' });
+  
+  const filePath = patchRows[0].file_path;
+  if (!filePath || !fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+  
+  // Ustaw headers dla download
+  res.setHeader('Content-Disposition', `attachment; filename="patch_${patchId}.vcv"`);
+  res.setHeader('Content-Type', 'application/octet-stream');
+  
+  // Stream plik
+  const fileStream = fs.createReadStream(filePath);
+  fileStream.pipe(res);
 });
 
 // Endpoint do analizy patcha na płatne moduły
@@ -245,17 +353,43 @@ router.post('/analyze-patch', upload.single('vcv'), async (req, res) => {
       return res.status(500).json({ error: 'Failed to read file' });
     }
     let parsed = null;
+    let modules = [];
     try {
-      parsed = JSON.parse(buffer.toString('utf-8'));
-    } catch (e) {
-      try {
-        const decompressed = zlib.inflateSync(buffer);
+      // Najpierw sprawdź czy to gzip (magic bytes 0x1f 0x8b)
+      if (buffer.length > 2 && buffer[0] === 0x1f && buffer[1] === 0x8b) {
+        console.log('ANALYZE: Wykryto gzip, rozpakowuję...');
+        const decompressed = zlib.gunzipSync(buffer);
         parsed = JSON.parse(decompressed.toString('utf-8'));
+        console.log('ANALYZE: Rozpakowano gzip i sparsowano JSON');
+      } else {
+        // Spróbuj jako zwykły JSON
+        parsed = JSON.parse(buffer.toString('utf-8'));
+        console.log('ANALYZE: Sparsowano jako JSON');
+      }
+      modules = extractModules(parsed);
+    } catch (e) {
+      console.log('ANALYZE: Nie udało się sparsować jako JSON lub gzip+JSON, próbuję zstd+tar...');
+      try {
+        // Spróbuj zstd dekompresję
+        const zstdDecompressed = await decompress(buffer);
+        console.log('ANALYZE: Rozpakowano zstd, sprawdzam czy to tar...');
+        
+        // Spróbuj wyciągnąć JSON z tar
+        parsed = await extractJsonFromTar(zstdDecompressed);
+        if (parsed) {
+          console.log('ANALYZE: Wyciągnięto JSON z tar');
+          modules = extractModules(parsed);
+        } else {
+          throw new Error('No JSON found in tar');
+        }
       } catch (e2) {
-        return res.status(400).json({ error: 'Failed to parse VCV file' });
+        console.log('ANALYZE: Nie udało się sparsować pliku VCV, zwracam pustą listę');
+        modules = [];
       }
     }
-    const modules = extractModules(parsed);
+    if (modules.length === 0) {
+      return res.json({ paidModules: [], totalPrice: 0 });
+    }
     const paidModules = [];
     let totalPrice = 0;
     for (const mod of modules) {
@@ -282,12 +416,61 @@ router.post('/analyze-patch', upload.single('vcv'), async (req, res) => {
 
 // Pomocnicza funkcja do wyciągania modułów z patcha
 function extractModules(parsed) {
+  if (!parsed) return [];
   // uproszczona logika: szukaj modules lub plugins
-  return Array.isArray(parsed.modules)
-    ? parsed.modules.map(m => ({ plugin: m.plugin || '', model: m.model || '' }))
-    : Array.isArray(parsed.plugins)
-    ? parsed.plugins.map(m => ({ plugin: m.plugin || '', model: m.model || '' }))
-    : [];
+  let mods = [];
+  if (Array.isArray(parsed.modules)) {
+    mods = parsed.modules.map(m => ({ plugin: m.plugin || '', model: m.model || '' }));
+  } else if (Array.isArray(parsed.plugins)) {
+    mods = parsed.plugins.map(m => ({ plugin: m.plugin || '', model: m.model || '' }));
+  }
+  // Zlicz wystąpienia
+  const countMap = {};
+  for (const m of mods) {
+    const key = `${m.plugin}:${m.model}`;
+    countMap[key] = (countMap[key] || 0) + 1;
+  }
+  return Object.entries(countMap).map(([key, count]) => {
+    const [plugin, model] = key.split(':');
+    return { plugin, model, count };
+  });
+}
+
+// Funkcja do ekstrakcji JSON z tar stream lub bezpośredniego
+async function extractJsonFromTar(tarBuffer) {
+  try {
+    // Najpierw spróbuj sparsować jako JSON bezpośrednio
+    return JSON.parse(tarBuffer.toString('utf-8'));
+  } catch (e) {
+    // Jeśli nie, spróbuj tar
+    return new Promise((resolve, reject) => {
+      const extract = tar.extract();
+      let jsonContent = null;
+
+      extract.on('entry', (header, stream, next) => {
+        if (header.name.endsWith('.json') || header.name === 'patch.json') {
+          let chunks = [];
+          stream.on('data', chunk => chunks.push(chunk));
+          stream.on('end', () => {
+            try {
+              jsonContent = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
+            } catch (e) {
+              // ignoruj błędy parsowania pojedynczych plików
+            }
+            next();
+          });
+        } else {
+          stream.on('end', () => next());
+        }
+        stream.resume();
+      });
+
+      extract.on('finish', () => resolve(jsonContent));
+      extract.on('error', reject);
+
+      extract.end(tarBuffer);
+    });
+  }
 }
 
 // Upload patcha (.vcv)
@@ -320,24 +503,6 @@ router.get('/patches', async (req, res) => {
   res.json({ patches: rows });
 });
 
-// Pobierz szczegóły patcha
-router.get('/:id', async (req, res) => {
-  const db = await getDb();
-  const patchId = req.params.id;
-  const [patches] = await db.execute('SELECT p.*, c.name as category_name FROM patches p LEFT JOIN categories c ON p.category_id = c.id WHERE p.id = ?', [patchId]);
-  if (!patches || !patches.length) {
-    return res.status(404).json({ error: 'Patch not found' });
-  }
-  const patch = patches[0];
-  // Pobierz moduły
-  const [modules] = await db.execute('SELECT m.plugin, m.model FROM modules m JOIN patch_modules pm ON m.id = pm.module_id WHERE pm.patch_id = ?', [patchId]);
-  // Pobierz tagi
-  const [tags] = await db.execute('SELECT t.name FROM tags t JOIN patch_tags pt ON t.id = pt.tag_id WHERE pt.patch_id = ?', [patchId]);
-  // Pobierz notatki
-  const [notes] = await db.execute('SELECT n.content, n.created_at, u.username FROM notes n JOIN users u ON n.user_id = u.id WHERE n.patch_id = ? ORDER BY n.created_at DESC', [patchId]);
-  res.json({ patch, modules, tags, notes });
-});
-
 // Pobierz plik patcha (.vcv)
 router.get('/download/:id', requireAuth, async (req, res) => {
   const db = await getDb();
@@ -354,7 +519,7 @@ router.get('/download/:id', requireAuth, async (req, res) => {
 });
 
 // POST /patches/:id/notes - dodaj notatkę do patcha (zalogowany użytkownik)
-router.post('/:id/notes', requireAuth, async (req, res) => {
+router.post('/patches/:id/notes', requireAuth, async (req, res) => {
   const db = await getDb();
   const patchId = req.params.id;
   const { content } = req.body;
@@ -372,7 +537,7 @@ router.post('/:id/notes', requireAuth, async (req, res) => {
 });
 
 // POST /patches/:id/tags - dodaj tag do patcha (zalogowany użytkownik)
-router.post('/:id/tags', requireAuth, async (req, res) => {
+router.post('/patches/:id/tags', requireAuth, async (req, res) => {
   const db = await getDb();
   const patchId = req.params.id;
   const { tag } = req.body;
@@ -399,7 +564,7 @@ router.post('/:id/tags', requireAuth, async (req, res) => {
 });
 
 // DELETE /patches/:id - usuń patcha (właściciel lub admin)
-router.delete('/:id', requireAuth, async (req, res) => {
+router.delete('/patches/:id', requireAuth, async (req, res) => {
   const db = await getDb();
   const patchId = req.params.id;
   // Sprawdź czy patch istnieje i czy użytkownik ma prawo

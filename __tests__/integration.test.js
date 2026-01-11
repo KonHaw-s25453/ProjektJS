@@ -19,7 +19,7 @@ describe('Integration', () => {
   test('upload .vcv file to DB', async () => {
     const fixture = path.resolve(__dirname, '..', 'test-min.vcv');
     const res = await request(app)
-      .post('/upload')
+      .post('/api/upload')
       .set('Authorization', authHeaderFor('test-integration'))
       .attach('vcv', fixture)
       .timeout(10000);
@@ -30,7 +30,7 @@ describe('Integration', () => {
     const fixture = path.resolve(__dirname, '..', 'test-min.vcv');
     if (!fs.existsSync(fixture)) return;
     const res = await request(app)
-      .post('/upload')
+      .post('/api/upload')
       .set('Authorization', authHeaderFor('test-integration'))
       .field('category', '1')
       .attach('vcv', fixture, path.basename(fixture))

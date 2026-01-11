@@ -46,6 +46,55 @@ npm run seed:node
 npm run seed
 ```
 
+## Price Management
+
+The system automatically fetches and caches module prices from the official VCV Rack Library.
+
+### Manual Price Updates
+
+```bash
+# Update all module prices from VCV Library
+node scripts/update-prices.js
+
+# Check if library has been updated
+node scripts/check-updates.js
+
+# Check and update if needed (combines both)
+node scripts/check-updates.js
+```
+
+### Scheduled Updates
+
+For automatic updates, set up a scheduled task:
+
+**Windows Task Scheduler:**
+- Create a new task
+- Action: Start a program
+- Program: `cmd.exe`
+- Arguments: `/c "cd /d C:\path\to\your\project && node scripts\scheduled-update.bat"`
+- Set daily/weekly schedule
+
+**Linux/Mac (cron):**
+```bash
+# Add to crontab (crontab -e)
+# Daily at 2 AM
+0 2 * * * cd /path/to/project && node scripts/check-updates.js
+```
+
+### Admin Panel
+
+Administrators can manage prices through the web interface:
+- Go to `/admin` page
+- Use "Sprawdź Aktualizacje" to check library status
+- Use "Aktualizuj Ceny" to trigger price updates
+- View update status and reasons for updates
+
+### API Endpoints
+
+- `GET /api/check-updates` - Check if library has updates
+- `POST /api/check-and-update` - Check and update prices if needed (admin only)
+- `POST /api/update-prices` - Force update all prices (admin only)
+
 Files added:
 
 - `server.js` — Express server with endpoints `/upload`, `/patches`, `/patches/:id`, `/download/:id`.

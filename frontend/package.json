@@ -2,6 +2,7 @@
   "name": "vcv-landing-frontend",
   "private": true,
   "version": "0.1.0",
+  "type": "module",
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
@@ -9,6 +10,8 @@
     "test": "jest"
   },
   "dependencies": {
+    "cheerio": "^1.1.2",
+    "http-proxy-middleware": "^3.0.5",
     "next": "^14.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
